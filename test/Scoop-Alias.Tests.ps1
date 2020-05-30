@@ -1,5 +1,3 @@
-. "$PSScriptRoot\..\lib\Alias.ps1"
-
 if (!$env:CI) { Write-Host 'SKipping test' }
 
 Mock shimdir { "$env:TMP\Scoopshim" }
@@ -8,11 +6,13 @@ Mock load_cfg { }
 $shimdir = shimdir
 New-Item $shimdir -ItemType Directory -Force | Out-Null
 
-Get-ChildItem 'Function:\' | Write-host
-Write-Host 'before'
+# Get-ChildItem 'Function:\' | Write-host
+# Write-Host 'before'
 
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
     BeforeAll {
+        . "$PSScriptRoot\..\lib\Alias.ps1"
+
         Get-ChildItem 'Function:\'  | Write-host
         Write-Host 'beforeall describe'
     }
