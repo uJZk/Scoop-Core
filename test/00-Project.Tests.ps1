@@ -11,7 +11,6 @@ $project_file_exclusions = @(
 )
 
 Describe 'Project code' {
-
     $files = @(
         $repo_files |
             Where-Object { $_.fullname -inotmatch $($project_file_exclusions -join '|') } |
@@ -31,9 +30,8 @@ Describe 'Project code' {
         # originally created by Alexander Petrovskiy & Dave Wyatt
         [CmdletBinding()]
         param (
-            [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
-            [string[]]
-            $Path
+            [Parameter(Mandatory, ValueFromPipeline)]
+            [String[]] $Path
         )
 
         process {

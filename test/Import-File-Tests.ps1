@@ -129,5 +129,4 @@ Describe 'Style constraints for non-binary project files' {
             throw "The following $($badLines.Count) lines contain TABs within leading whitespace: `r`n`r`n$($badLines -join "`r`n")"
         }
     }
-
 }

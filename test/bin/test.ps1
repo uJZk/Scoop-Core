@@ -6,6 +6,7 @@
 param([String] $TestPath = 'test/')
 
 $splat = @{
+    CI       = $true
     Path     = $TestPath
     PassThru = $true
 }
@@ -58,6 +59,4 @@ if ($env:CI -and ($env:CI -eq $true)) {
 }
 
 Write-Host 'Invoke-Pester' @splat -ForegroundColor Magenta
-$result = Invoke-Pester @splat
-
-if ($result.FailedCount -gt 0) { exit $result.FailedCount }
+Invoke-Pester @splat
