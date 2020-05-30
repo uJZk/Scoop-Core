@@ -8,6 +8,8 @@ Mock load_cfg { }
 $shimdir = shimdir
 New-Item $shimdir -ItemType Directory -Force | Out-Null
 
+Get-Command Add-ScoopAlias
+
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
     Context 'alias does not exist' {
         It 'creates a new alias' {
