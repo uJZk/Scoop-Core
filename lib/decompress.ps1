@@ -324,4 +324,4 @@ function extract_zip($path, $to, $removal) {
     Show-DeprecatedWarning $MyInvocation 'Expand-ZipArchive'
     Expand-ZipArchive -Path $path -DestinationPath $to -Removal:$removal
 }
-#endregion Deprecateda
+#endregion Deprecated

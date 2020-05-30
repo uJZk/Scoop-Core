@@ -22,6 +22,14 @@ if ($env:CI_WINDOWS -eq $true) {
         Start-FileDownload 'https://raw.githubusercontent.com/ScoopInstaller/Binary/master/innounp/innounp048.rar' -FileName "$env:SCOOP_HELPERS\innounp.rar"
         & 7z.exe x "$env:SCOOP_HELPERS\innounp.rar" -o"$env:SCOOP_HELPERS\innounp" -y
     }
+
+    'shims', 'workspace', 'persist', 'modules', 'cache', 'buckets' | ForEach-Object {
+        Join-Path $env:SCOOP $_ | New-Item -ItemType Directory | Out-Null
+    }
+
+    Write-Warning 'Downloading main bucket'
+    Start-FileDownload 'https://github.com/ScoopInstaller/Main/archive/master.zip' -FileName "$env:SCOOP\buckets\main.zip"
+    & 7z.exe x "$env:SCOOP\buckets\main.zip" -o"$env:SCOOP\buckets\main" -y
 }
 
 if ($env:CI -and ($env:CI -eq $true)) {
