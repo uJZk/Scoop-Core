@@ -51,9 +51,13 @@ if ($env:CI -and ($env:CI -eq $true)) {
     }
 
     if ($excludes.Length -gt 0) { $splat.ExcludeTag = $excludes }
+    if ($commitChangedFiles.Count -eq 0) {
+        Write-Warning 'No changed files'
+        exit 0
+    }
 }
 
-Write-Host 'Invoke-Pester' $splat -ForegroundColor Magenta
+Write-Host 'Invoke-Pester' @splat -ForegroundColor Magenta
 $result = Invoke-Pester @splat
 
 if ($result.FailedCount -gt 0) { exit $result.FailedCount }
