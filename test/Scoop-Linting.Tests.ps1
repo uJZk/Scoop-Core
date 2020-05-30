@@ -14,7 +14,7 @@ Describe -Tag 'Linter' "PSScriptAnalyzer" {
             { Get-Command Invoke-ScriptAnalyzer -ErrorAction Stop } | Should -not -throw
         }
         It "PSScriptAnalyzerSettings.ps1 should exist" {
-            Test-Path "$repo_dir\PSScriptAnalyzerSettings.psd1" | Should -betrue
+            Test-Path $linting_settings | Should -BeTrue
         }
         It "There should be files to test" {
             $scoop_modules.Count | Should -not -be 0
@@ -22,6 +22,7 @@ Describe -Tag 'Linter' "PSScriptAnalyzer" {
     }
 
     Context "Linting all *.psd1, *.psm1 and *.ps1 files" {
+        Write-Host $scoop_modules -f magenta
         foreach ($directory in $scoop_modules) {
             $analysis = Invoke-ScriptAnalyzer -Path $directory.FullName -Settings $linting_settings.FullName
             It "Should pass: $directory" {
