@@ -15,7 +15,7 @@
         ]
     ],
     "##": [
-        "checkver",
+        "checkverfasdfasd",
         "Version\\s+([\\d.]+)"
     ],
     "autoupdate": {

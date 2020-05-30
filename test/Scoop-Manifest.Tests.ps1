@@ -49,9 +49,8 @@ Describe 'manifest-validation' -Tag 'Manifests' {
 
     Context "manifest validates against the schema" {
         BeforeAll {
-            if ($null -eq $bucketdir) {
-                $bucketdir = "$PSScriptRoot\..\bucket\"
-            }
+            if ($null -eq $bucketdir) { $bucketdir = "$PSScriptRoot\..\bucket\" }
+
             $changed_manifests = @()
             if ($env:CI -eq $true) {
                 $commit = if ($env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT) { $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT } else { $env:APPVEYOR_REPO_COMMIT }
@@ -59,45 +58,44 @@ Describe 'manifest-validation' -Tag 'Manifests' {
             }
             $manifest_files = Get-ChildItem $bucketdir *.json
             $validator = New-Object Scoop.Validator($schema, $true)
+
+            $quota_exceeded = $false
         }
 
-        $quota_exceeded = $false
+        It 'Manifest files' {
+            $manifest_files | ForEach-Object {
+                $skip_manifest = ($changed_manifests -inotcontains $_.FullName)
+                if ($env:CI -ne $true -or $changed_manifests -imatch 'schema.json') { $skip_manifest = $false }
 
-        $manifest_files | ForEach-Object {
-            $skip_manifest = ($changed_manifests -inotcontains $_.FullName)
-            if ($env:CI -ne $true -or $changed_manifests -imatch 'schema.json') {
-                $skip_manifest = $false
-            }
-            It "$_" -skip:$skip_manifest {
-                $file = $_ # exception handling may overwrite $_
+                It "$_" -skip:$skip_manifest {
+                    $file = $_ # exception handling may overwrite $_
 
-                if (!($quota_exceeded)) {
-                    try {
-                        $validator.Validate($file.fullname)
+                    if (!($quota_exceeded)) {
+                        try {
+                            $validator.Validate($file.fullname)
 
-                        if ($validator.Errors.Count -gt 0) {
-                            Write-Host -f red "      [-] $_ has $($validator.Errors.Count) Error$(If($validator.Errors.Count -gt 1) { 's' })!"
-                            Write-Host -f yellow $validator.ErrorsAsString
-                        }
-                        $validator.Errors.Count | Should -be 0
-                    } catch {
-                        if ($_.exception.message -like '*The free-quota limit of 1000 schema validations per hour has been reached.*') {
-                            $quota_exceeded = $true
-                            Write-Host -f darkyellow 'Schema validation limit exceeded. Will skip further validations.'
-                        } else {
-                            throw
+                            if ($validator.Errors.Count -gt 0) {
+                                Write-Host -f red "      [-] $_ has $($validator.Errors.Count) Error$(If($validator.Errors.Count -gt 1) { 's' })!"
+                                Write-Host -f yellow $validator.ErrorsAsString
+                            }
+                            $validator.Errors.Count | Should -be 0
+                        } catch {
+                            if ($_.exception.message -like '*The free-quota limit of 1000 schema validations per hour has been reached.*') {
+                                $quota_exceeded = $true
+                                Write-Host -f darkyellow 'Schema validation limit exceeded. Will skip further validations.'
+                            } else {
+                                throw
+                            }
                         }
                     }
-                }
 
-                $manifest = parse_json $file.fullname
-                $url = arch_specific "url" $manifest "32bit"
-                $url64 = arch_specific "url" $manifest "64bit"
-                if (!$url) {
-                    $url = $url64
+                    $manifest = parse_json $file.fullname
+                    $url = arch_specific "url" $manifest "32bit"
+                    $url64 = arch_specific "url" $manifest "64bit"
+                    if (!$url) { $url = $url64 }
+                    $url | Should -Not -BeNullOrEmpty
                 }
-                $url | Should -Not -BeNullOrEmpty
             }
         }
-}
+    }
 }
