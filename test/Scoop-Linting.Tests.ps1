@@ -1,7 +1,6 @@
 Describe -Tag 'Linter' "PSScriptAnalyzer" {
     BeforeAll {
         $repo_dir = $env:SCOOP_HOME
-        Write-Host $repo_dir -f green
 
         $scoop_modules = Get-ChildItem $repo_dir -Recurse -Include *.psd1, *.psm1, *.ps1
         $scoop_modules = $scoop_modules | Where-Object { $_.DirectoryName -notlike '*\supporting*' -and $_.DirectoryName -notlike '*\test*' }
