@@ -17,7 +17,6 @@ if ($env:CI -and ($env:CI -eq $true)) {
     $commitMessage = "$env:APPVEYOR_REPO_COMMIT_MESSAGE $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED".TrimEnd()
     $commitChangedFiles = @(Get-GitChangedFile -Commit $commit -Exclude 'supporting*' )
 
-    $commitChangedFiles
     if ($commitMessage -match '!linter') {
         Write-Warning 'Skipping code linting per commit flag ''!linter'''
         $excludes += 'Linter'

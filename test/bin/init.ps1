@@ -10,7 +10,7 @@ if ($env:CI_WINDOWS -eq $true) {
         $env:SCOOP_HELPERS = 'C:\projects\helpers'
         [System.Environment]::SetEnvironmentVariable('SCOOP_HELPERS', $env:SCOOP_HELPERS, 'Machine')
     }
-    if (!(Test-Path $env:SCOOP_HELPERS)) { New-Item -ItemType Directory -Path $env:SCOOP_HELPERS }
+    if (!(Test-Path $env:SCOOP_HELPERS)) { New-Item -Path $env:SCOOP_HELPERS -ItemType Directory | Out-Null }
 
     if (!(Test-Path "$env:SCOOP_HELPERS\lessmsi\lessmsi.exe")) {
         Write-Warning 'Installing lessmsi'
