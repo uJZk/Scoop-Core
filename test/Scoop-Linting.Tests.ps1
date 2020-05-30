@@ -1,7 +1,9 @@
 Describe -Tag 'Linter' "PSScriptAnalyzer" {
     BeforeAll {
+        Write-Host (Get-Item $PSScriptRoot) -f green
+        Write-Host (Get-Item $PSScriptRoot).Directory.Parent.FullName -f magenta
 
-        $repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
+        $repo_dir = (Get-Item $PSScriptRoot).Directory.Parent.FullName
         Write-Host $repo_dir
 
         $scoop_modules = Get-ChildItem $repo_dir -Recurse -Include *.psd1, *.psm1, *.ps1
