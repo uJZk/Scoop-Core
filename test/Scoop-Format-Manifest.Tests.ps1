@@ -1,9 +1,9 @@
-. "$PSScriptRoot\Scoop-TestLib.ps1"
-. "$PSScriptRoot\..\lib\json.ps1"
-. "$PSScriptRoot\..\lib\manifest.ps1"
-
 Describe 'Pretty json formating' -Tag 'Scoop' {
     BeforeAll {
+        . "$PSScriptRoot\Scoop-TestLib.ps1"
+        . "$PSScriptRoot\..\lib\json.ps1"
+        . "$PSScriptRoot\..\lib\manifest.ps1"
+
         $format = "$PSScriptRoot\fixtures\format"
         $manifests = Get-ChildItem "$format\formated" -File -Filter '*.json'
     }
