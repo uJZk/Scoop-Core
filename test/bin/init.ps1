@@ -24,7 +24,7 @@ if ($env:CI_WINDOWS -eq $true) {
     }
 
     'shims', 'workspace', 'persist', 'modules', 'cache', 'buckets' | ForEach-Object {
-        Join-Path $env:SCOOP $_ | New-Item -ItemType Directory | Out-Null
+        New-Item (Join-Path $env:SCOOP $_) -ItemType Directory | Out-Null
     }
 
     Write-Warning 'Downloading main bucket'
