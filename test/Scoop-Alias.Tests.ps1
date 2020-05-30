@@ -2,15 +2,13 @@
 
 if (!$env:CI) { Write-Host 'SKipping test' }
 
+Mock shimdir { "$env:TMP\Scoopshim" }
+Mock load_cfg { }
+
+$shimdir = shimdir
+New-Item $shimdir -ItemType Directory -Force | Out-Null
+
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
-    BeforeAll {
-        Mock shimdir { "$env:TMP\Scoopshim" }
-        Mock load_cfg { }
-
-        $shimdir = shimdir
-        New-Item $shimdir -ItemType Directory -Force | Out-Null
-    }
-
     Context 'alias does not exist' {
         It 'creates a new alias' {
             $aliasFile = "$shimdir\scoop-cosiTest.ps1"
