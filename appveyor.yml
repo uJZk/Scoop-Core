@@ -2,12 +2,13 @@ version: "{build}-{branch}"
 image: Visual Studio 2019
 build: off
 deploy: off
+clone_folder: '%SCOOP_HOME%'
 environment:
   SCOOP: C:\SCOOP
   SCOOP_HOME: C:\SCOOP\apps\scoop\current
   SCOOP_HELPERS: C:\projects\helpers
-  lessmsi: '%scoop_helpers%\lessmsi\lessmsi.exe'
-  innounp: '%scoop_helpers%\innounp\innounp.exe'
+  lessmsi: '%SCOOP_HELPERS%\lessmsi\lessmsi.exe'
+  innounp: '%SCOOP_HELPERS%\innounp\innounp.exe'
   matrix:
     - PowerShell: 5
     - PowerShell: 7
