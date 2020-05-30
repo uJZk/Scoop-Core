@@ -2,7 +2,7 @@ version: "{build}-{branch}"
 image: Visual Studio 2019
 build: off
 deploy: off
-clone_folder: '%SCOOP_HOME%'
+clone_folder: '%SCOOP_HOME%\alfa'
 environment:
   SCOOP: C:\SCOOP
   SCOOP_HOME: C:\SCOOP\apps\scoop\current
