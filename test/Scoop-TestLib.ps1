@@ -1,9 +1,6 @@
 if (!$script:run) { $script:run = 0 }
 if (!$script:failed) { $script:failed = 0 }
 
-$MyInvocation.PSCommandPath | Write-Host
-Write-Host 'here'
-
 function filter_tests($arg) {
     if (!$arg) { return }
     $script:filter = $arg -join ' '
@@ -85,5 +82,3 @@ function setup_working($name) {
 
     return $working_dir
 }
-
-Write-Host 'cosi'
