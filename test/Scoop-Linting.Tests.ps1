@@ -3,8 +3,11 @@ Describe -Tag 'Linter' "PSScriptAnalyzer" {
         $repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
 
         $scoop_modules = Get-ChildItem $repo_dir -Recurse -Include *.psd1, *.psm1, *.ps1
+        Write-Host 'ahoj', $scoop_modules.Count -f magenta
         $scoop_modules = $scoop_modules | Where-Object { $_.DirectoryName -notlike '*\supporting*' -and $_.DirectoryName -notlike '*\test*' }
-        $scoop_modules = $scoop_modules | Select-Object -ExpandProperty Directory -Unique
+        Write-Host 'ahoj2', $scoop_modules.Count -f magenta
+        $scoop_modules = $scoop_modules | Select-Object -Unique
+        Write-Host 'ahoj3', $scoop_modules.Count -f magenta
 
         $linting_settings = Get-Item -Path "$repo_dir\PSScriptAnalyzerSettings.psd1"
     }
@@ -22,7 +25,6 @@ Describe -Tag 'Linter' "PSScriptAnalyzer" {
     }
 
     Context "Linting all *.psd1, *.psm1 and *.ps1 files" {
-        Write-Host $scoop_modules -f magenta
         foreach ($directory in $scoop_modules) {
             $analysis = Invoke-ScriptAnalyzer -Path $directory.FullName -Settings $linting_settings.FullName
             It "Should pass: $directory" {
