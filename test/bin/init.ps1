@@ -1,8 +1,8 @@
 Write-Host "PowerShell: $($PSVersionTable.PSVersion)"
 (7z.exe | Select-String -Pattern '7-Zip').ToString()
 Write-Host 'Installing dependencies ...'
-Install-Module -Name Pester -Repository PSGallery -Scope CurrentUser -SkipPublisherCheck -Verbose
-Install-Module -Name PSScriptAnalyzer, BuildHelpers -Repository PSGallery -Scope CurrentUser -Verbose
+Install-Module -Name Pester -Repository PSGallery -Scope CurrentUser -SkipPublisherCheck -Verbose -Force
+Install-Module -Name PSScriptAnalyzer, BuildHelpers -Repository PSGallery -Scope CurrentUser -Verbose -Force
 
 if ($env:CI_WINDOWS -eq $true) {
     # Do not force maintainers to have this inside environment appveyor config
