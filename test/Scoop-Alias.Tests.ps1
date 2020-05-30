@@ -10,14 +10,20 @@ New-Item $shimdir -ItemType Directory -Force | Out-Null
 
 Get-Command Add-ScoopAlias
 
+
+Get-ChildItem 'Function:\'
 Write-Host 'before'
 
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
     BeforeAll {
+        Get-ChildItem 'Function:\'
         Write-Host 'beforeall describe'
     }
     Context 'alias does not exist' {
-        BeforeAll { Write-Host 'beforeall cpmtext' }
+        BeforeAll {
+            Get-ChildItem 'Function:\'
+            Write-Host 'beforeall cpmtext'
+        }
         It 'creates a new alias' {
             $aliasFile = "$shimdir\scoop-cosiTest.ps1"
             $aliasFile | Should -Not -Exist
