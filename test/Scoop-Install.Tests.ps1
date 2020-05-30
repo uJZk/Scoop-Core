@@ -1,11 +1,11 @@
-Describe 'ensure_architecture' -Tag 'Scoop' {
-    BeforeAll {
-        . "$PSScriptRoot\Scoop-TestLib.ps1"
-        . "$PSScriptRoot\..\lib\core.ps1"
-        . "$PSScriptRoot\..\lib\manifest.ps1"
-        . "$PSScriptRoot\..\lib\install.ps1"
-    }
+BeforeAll {
+    . "$PSScriptRoot\..\lib\core.ps1"
+    . "$PSScriptRoot\..\lib\manifest.ps1"
+    . "$PSScriptRoot\..\lib\install.ps1"
+    . "$PSScriptRoot\Scoop-TestLib.ps1"
+}
 
+Describe 'ensure_architecture' -Tag 'Scoop' {
     It "should keep correct architectures" {
         ensure_architecture "32bit" | Should -be "32bit"
         ensure_architecture "32" | Should -be "32bit"
