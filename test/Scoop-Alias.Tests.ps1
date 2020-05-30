@@ -1,5 +1,7 @@
 . "$PSScriptRoot\..\lib\Alias.ps1"
 
+if (!$env:CI) { Write-Host 'SKipping test' }
+
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
     BeforeAll {
         Mock shimdir { "$env:TMP\Scoopshim" }

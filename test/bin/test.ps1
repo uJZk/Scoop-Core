@@ -6,9 +6,8 @@
 param([String] $TestPath = 'test/')
 
 $splat = @{
-    CI       = $true
-    Path     = $TestPath
-    PassThru = $true
+    CI   = $true
+    Path = $TestPath
 }
 
 if ($env:CI -and ($env:CI -eq $true)) {

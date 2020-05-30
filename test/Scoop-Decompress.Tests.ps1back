@@ -22,7 +22,6 @@ Describe 'Decompression function' -Tag 'Scoop', 'Decompress' {
     }
 
     Context "7zip extraction" {
-
         BeforeAll {
             if ($env:CI) {
                 Mock Get-AppFilePath { (Get-Command 7z.exe).Path }
