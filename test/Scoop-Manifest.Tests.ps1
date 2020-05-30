@@ -2,12 +2,12 @@ param($bucketdir = "$PSScriptRoot\..\bucket\")
 
 if (!(Test-Path $bucketdir)) { Write-Host 'Skipping manifest tests'; return }
 
-. "$PSScriptRoot\Scoop-TestLib.ps1"
-. "$PSScriptRoot\..\lib\core.ps1"
-. "$PSScriptRoot\..\lib\manifest.ps1"
-
 Describe 'manifest-validation' -Tag 'Manifests' {
     BeforeAll {
+        . "$PSScriptRoot\Scoop-TestLib.ps1"
+        . "$PSScriptRoot\..\lib\core.ps1"
+        . "$PSScriptRoot\..\lib\manifest.ps1"
+
         $working_dir = setup_working 'manifest'
         $schema = "$PSScriptRoot\..\schema.json"
         Add-Type -Path "$PSScriptRoot\..\supporting\validator\bin\Newtonsoft.Json.dll"
