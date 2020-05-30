@@ -1,8 +1,5 @@
 if (!$env:CI) { Write-Host 'SKipping test' }
 
-# Get-ChildItem 'Function:\' | Write-host
-# Write-Host 'before'
-
 Describe 'Add-ScoopAlias' -Tag 'Scoop' {
     BeforeAll {
         . "$PSScriptRoot\..\lib\Alias.ps1"
@@ -12,15 +9,9 @@ Describe 'Add-ScoopAlias' -Tag 'Scoop' {
 
         $shimdir = shimdir
         New-Item $shimdir -ItemType Directory -Force | Out-Null
-
-        Get-ChildItem 'Function:\'  | Write-host
-        Write-Host 'beforeall describe'
     }
+
     Context 'alias does not exist' {
-        BeforeAll {
-            Get-ChildItem 'Function:\' | Write-host
-            Write-Host 'beforeall cpmtext'
-        }
         It 'creates a new alias' {
             $aliasFile = "$shimdir\scoop-cosiTest.ps1"
             $aliasFile | Should -Not -Exist
