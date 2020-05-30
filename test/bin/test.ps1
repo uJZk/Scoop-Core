@@ -23,6 +23,8 @@ if ($env:CI -and ($env:CI -eq $true)) {
 
     Write-Host 'changed files:'
     $commitChangedFiles
+    $commitChangedFiles.GetType()
+    $commitChangedFiles | Get-Member
     exit
 
     if ($commitChangedFiles | Where-object -Property Basename -Like '*.ps1') {
