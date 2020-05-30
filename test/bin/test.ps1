@@ -14,33 +14,27 @@ if ($env:CI -and ($env:CI -eq $true)) {
     $excludes = @()
     $commit = if ($env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT) { $env:APPVEYOR_PULL_REQUEST_HEAD_COMMIT } else { $env:APPVEYOR_REPO_COMMIT }
     $commitMessage = "$env:APPVEYOR_REPO_COMMIT_MESSAGE $env:APPVEYOR_REPO_COMMIT_MESSAGE_EXTENDED".TrimEnd()
-    $commitChangedFiles = Get-GitChangedFile -Commit $commit
+    $commitChangedFiles = @(Get-GitChangedFile -Commit $commit -Exclude 'supporting*' )
 
+    $commitChangedFiles
     if ($commitMessage -match '!linter') {
         Write-Warning 'Skipping code linting per commit flag ''!linter'''
         $excludes += 'Linter'
     }
 
-    Write-Host 'changed files:'
-    $commitChangedFiles
-    $commitChangedFiles.GetType()
-    $commitChangedFiles | Get-Member
-    exit
-
-    if ($commitChangedFiles | Where-object -Property Basename -Like '*.ps1') {
+    if (($commitChangedFiles -match '\.ps(m|d)?1$').Count -eq 0) {
         Write-Warning 'Skipping tests and code linting for *.ps1 files because they did not change'
         $excludes += 'Linter'
         $excludes += 'Scoop'
     }
 
-    $changed_scripts = (Get-GitChangedFile -Include '*decompress.ps1' -Commit $commit)
-    if (!$changed_scripts) {
-        Write-Warning "Skipping tests and code linting for decompress.ps1 files because it didn't change"
+    if (($commitChangedFiles -match 'decompress\.ps(m|d)?1$').Count -eq 0) {
+        Write-Warning 'Skipping tests and code linting for decompress.ps1 files because it did not change'
         $excludes += 'Decompress'
     }
 
-    if ($env:CI_WINDOWS -ne $true) {
-        Write-Warning "Skipping tests and code linting for decompress.ps1 because they only work on Windows"
+    if ($env:CI_WINDOWS -and ($env:CI_WINDOWS -ne $true)) {
+        Write-Warning 'Skipping tests and code linting for decompress.ps1 because they only work on Windows'
         $excludes += 'Decompress'
     }
 
@@ -49,8 +43,9 @@ if ($env:CI -and ($env:CI -eq $true)) {
         $excludes += 'Manifests'
     }
 
-    $changed_manifests = Get-GitChangedFile -Include '*.json' -Commit $commit
-    if (!$changed_manifests) {
+    $json = $commitChangedFiles -match '\.json$'
+    $json = $json -notmatch '\.vscode|schema|buckets|supporting'
+    if ($json.Count -eq 0) {
         Write-Warning 'Skipping tests and validation for manifest files because they did not change'
         $excludes += 'Manifests'
     }
@@ -58,7 +53,7 @@ if ($env:CI -and ($env:CI -eq $true)) {
     if ($excludes.Length -gt 0) { $splat.ExcludeTag = $excludes }
 }
 
-Write-Host 'Invoke-Pester' @splat
+Write-Host 'Invoke-Pester' $splat -ForegroundColor Magenta
 $result = Invoke-Pester @splat
 
 if ($result.FailedCount -gt 0) { exit $result.FailedCount }
