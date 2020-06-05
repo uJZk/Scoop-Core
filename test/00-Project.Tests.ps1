@@ -10,29 +10,29 @@ BeforeAll {
         'supporting(\\|/)validator(\\|/)packages(\\|/)*',
         'supporting(\\|/)shimexe(\\|/)packages(\\|/)*'
     )
-}
 
-function Test-PowerShellSyntax {
-    # ref: http://powershell.org/wp/forums/topic/how-to-check-syntax-of-scripts-automatically @@ https://archive.is/xtSv6
-    # originally created by Alexander Petrovskiy & Dave Wyatt
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory, ValueFromPipeline)]
-        [String[]] $Path
-    )
+    function Test-PowerShellSyntax {
+        # ref: http://powershell.org/wp/forums/topic/how-to-check-syntax-of-scripts-automatically @@ https://archive.is/xtSv6
+        # originally created by Alexander Petrovskiy & Dave Wyatt
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory, ValueFromPipeline)]
+            [String[]] $Path
+        )
 
-    process {
-        foreach ($scriptPath in $Path) {
-            $contents = Get-Content -Path $scriptPath
+        process {
+            foreach ($scriptPath in $Path) {
+                $contents = Get-Content -Path $scriptPath
 
-            if ($null -eq $contents) { continue }
+                if ($null -eq $contents) { continue }
 
-            $errors = $null
-            $null = [System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
+                $errors = $null
+                $null = [System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
 
-            New-Object psobject -Property @{
-                Path              = $scriptPath
-                SyntaxErrorsFound = ($errors.Count -gt 0)
+                New-Object psobject -Property @{
+                    Path              = $scriptPath
+                    SyntaxErrorsFound = ($errors.Count -gt 0)
+                }
             }
         }
     }
