@@ -67,6 +67,3 @@ Describe 'Project code' {
         }
     }
 }
-
-Write-Host 'Imports' -f magenta
-. "$PSScriptRoot\Import-File-Tests.ps1"
