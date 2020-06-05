@@ -1,14 +1,16 @@
-$repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
+BeforeAll {
+    $repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
 
-$repo_files = @( Get-ChildItem $repo_dir -file -recurse -force )
+    $repo_files = @( Get-ChildItem $repo_dir -file -recurse -force )
 
-$project_file_exclusions = @(
-    $([regex]::Escape($repo_dir) + '(\\|/).git(\\|/).*$'),
-    '.sublime-workspace$',
-    '.DS_Store$',
-    'supporting(\\|/)validator(\\|/)packages(\\|/)*',
-    'supporting(\\|/)shimexe(\\|/)packages(\\|/)*'
-)
+    $project_file_exclusions = @(
+        $([regex]::Escape($repo_dir) + '(\\|/).git(\\|/).*$'),
+        '.sublime-workspace$',
+        '.DS_Store$',
+        'supporting(\\|/)validator(\\|/)packages(\\|/)*',
+        'supporting(\\|/)shimexe(\\|/)packages(\\|/)*'
+    )
+}
 
 function Test-PowerShellSyntax {
     # ref: http://powershell.org/wp/forums/topic/how-to-check-syntax-of-scripts-automatically @@ https://archive.is/xtSv6
@@ -35,6 +37,7 @@ function Test-PowerShellSyntax {
         }
     }
 }
+
 Describe 'Project code' {
     BeforeAll {
         $files = @(
