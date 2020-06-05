@@ -1,38 +1,36 @@
-BeforeAll {
-    $repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
+$repo_dir = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
 
-    $repo_files = @( Get-ChildItem $repo_dir -file -recurse -force )
+$repo_files = @( Get-ChildItem $repo_dir -file -recurse -force )
 
-    $project_file_exclusions = @(
-        $([regex]::Escape($repo_dir) + '(\\|/).git(\\|/).*$'),
-        '.sublime-workspace$',
-        '.DS_Store$',
-        'supporting(\\|/)validator(\\|/)packages(\\|/)*',
-        'supporting(\\|/)shimexe(\\|/)packages(\\|/)*'
+$project_file_exclusions = @(
+    $([regex]::Escape($repo_dir) + '(\\|/).git(\\|/).*$'),
+    '.sublime-workspace$',
+    '.DS_Store$',
+    'supporting(\\|/)validator(\\|/)packages(\\|/)*',
+    'supporting(\\|/)shimexe(\\|/)packages(\\|/)*'
+)
+
+function Test-PowerShellSyntax {
+    # ref: http://powershell.org/wp/forums/topic/how-to-check-syntax-of-scripts-automatically @@ https://archive.is/xtSv6
+    # originally created by Alexander Petrovskiy & Dave Wyatt
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [String[]] $Path
     )
 
-    function Test-PowerShellSyntax {
-        # ref: http://powershell.org/wp/forums/topic/how-to-check-syntax-of-scripts-automatically @@ https://archive.is/xtSv6
-        # originally created by Alexander Petrovskiy & Dave Wyatt
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory, ValueFromPipeline)]
-            [String[]] $Path
-        )
+    process {
+        foreach ($scriptPath in $Path) {
+            $contents = Get-Content -Path $scriptPath
 
-        process {
-            foreach ($scriptPath in $Path) {
-                $contents = Get-Content -Path $scriptPath
+            if ($null -eq $contents) { continue }
 
-                if ($null -eq $contents) { continue }
+            $errors = $null
+            $null = [System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
 
-                $errors = $null
-                $null = [System.Management.Automation.PSParser]::Tokenize($contents, [ref]$errors)
-
-                New-Object psobject -Property @{
-                    Path              = $scriptPath
-                    SyntaxErrorsFound = ($errors.Count -gt 0)
-                }
+            New-Object psobject -Property @{
+                Path              = $scriptPath
+                SyntaxErrorsFound = ($errors.Count -gt 0)
             }
         }
     }
@@ -70,4 +68,5 @@ Describe 'Project code' {
     }
 }
 
+Write-Host 'Imports' -f magenta
 . "$PSScriptRoot\Import-File-Tests.ps1"
