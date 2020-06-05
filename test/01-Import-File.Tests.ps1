@@ -103,7 +103,7 @@ Describe 'Style constraints for non-binary project files' {
                     }
                 }
             }
-        )
+        )      
 
         if ($badLines.Count -gt 0) {
             throw "The following $($badLines.Count) lines contain trailing whitespace: `r`n`r`n$($badLines -join "`r`n")"
