@@ -62,40 +62,50 @@ Describe 'manifest-validation' -Tag 'Manifests' {
             $quota_exceeded = $false
         }
 
-        It 'Manifest files' {
-            $manifest_files | ForEach-Object {
-                $skip_manifest = ($changed_manifests -inotcontains $_.FullName)
-                if ($env:CI -ne $true -or $changed_manifests -imatch 'schema.json') { $skip_manifest = $false }
+        foreach ($file in $manifest_files) {
+            $skip_manifest = ($changed_manifests -inotcontains $file.FullName)
+            if ($env:CI -ne $true -or $changed_manifests -imatch 'schema.json') { $skip_manifest = $false }
 
-                It "$_" -skip:$skip_manifest {
-                    $file = $_ # exception handling may overwrite $_
+            if ($skip_manifest) { continue }
 
-                    if (!($quota_exceeded)) {
-                        try {
-                            $validator.Validate($file.fullname)
+            $manifestError = $false
+            if (!($quota_exceeded)) {
+                try {
+                    $validator.Validate($file.fullname)
 
-                            if ($validator.Errors.Count -gt 0) {
-                                Write-Host -f red "      [-] $_ has $($validator.Errors.Count) Error$(If($validator.Errors.Count -gt 1) { 's' })!"
-                                Write-Host -f yellow $validator.ErrorsAsString
-                            }
-                            $validator.Errors.Count | Should -be 0
-                        } catch {
-                            if ($_.exception.message -like '*The free-quota limit of 1000 schema validations per hour has been reached.*') {
-                                $quota_exceeded = $true
-                                Write-Host -f darkyellow 'Schema validation limit exceeded. Will skip further validations.'
-                            } else {
-                                throw
-                            }
-                        }
+                    if ($validator.Errors.Count -gt 0) {
+                        Write-Host -f red "      [x] $file"
+                        Write-Host -f red "          [-] $_ has $($validator.Errors.Count) Error$(If($validator.Errors.Count -gt 1) { 's' })!"
+
+                        foreach ($l in ($validator.ErrorsAsString -split "`n")) { Write-Host -f yellow "    $l" }
                     }
-
-                    $manifest = parse_json $file.fullname
-                    $url = arch_specific "url" $manifest "32bit"
-                    $url64 = arch_specific "url" $manifest "64bit"
-                    if (!$url) { $url = $url64 }
-                    $url | Should -Not -BeNullOrEmpty
+                    $validator.Errors.Count | Should -Be 0
+                    if ($validator.Errors.Count) { $manifestError = $true }
+                } catch {
+                    if ($_.exception.message -like '*The free-quota limit of 1000 schema validations per hour has been reached.*') {
+                        $quota_exceeded = $true
+                        Write-Host -f darkyellow 'Schema validation limit exceeded. Will skip further validations.'
+                    } else {
+                        throw
+                    }
                 }
             }
+
+            $manifest = parse_json $file.FullName
+            $url = arch_specific "url" $manifest "32bit"
+            $url64 = arch_specific "url" $manifest "64bit"
+            if (!$url) { $url = $url64 }
+            if (!$url) { $manifestError = $true }
+
+            if ($manifestError) {
+                $color = 'Red'
+                $tick = 'x'
+            } else {
+                $color = 'Green'
+                $tick = '+'
+            }
+            Write-Host "      [$tick] $file" -ForegroundColor $color
+            $url | Should -Not -BeNullOrEmpty
         }
     }
 }
