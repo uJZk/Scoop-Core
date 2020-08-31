@@ -5,14 +5,14 @@
 # using one or the other.
 
 'core', 'manifest', 'help', 'getopt', 'install', 'Versions', 'shortcuts' | ForEach-Object {
-    . "$PSScriptRoot\..\lib\$_.ps1"
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-reset_aliases
+Reset-Alias
 $opt, $apps, $err = getopt $args
 
-if ($err) { Write-UserMessage -Message "scoop reset: $err" -Err; exit 2 }
-if (!$apps) { Write-UserMessage -Message '<app> missing' -Err; my_usage; exit 1 }
+if ($err) { Stop-ScoopExecution -Message "scoop reset: $err" -ExitCode 2 }
+if (!$apps) { Stop-ScoopExecution -Message 'Parameter <app> missing' -Usage (my_usage) }
 
 if ($apps -eq '*') {
     $local = installed_apps $false | ForEach-Object { , @($_, $false) }
@@ -27,11 +27,11 @@ foreach ($a in $apps) {
 
     $app, $bucket, $version = parse_app $app
 
-    # Set global flag when running reset command on specific app
-    if (($null -eq $global) -and (installed $app $true)) { $global = $true }
-
     # Skip scoop
     if ($app -eq 'scoop') { return }
+
+    # Set global flag when running reset command on specific app
+    if (($null -eq $global) -and (installed $app $true)) { $global = $true }
 
     if (!(installed $app)) {
         ++$problems

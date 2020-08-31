@@ -33,20 +33,15 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidateScript( {
-        if (!($_ -match '^(.*)\/(.*):(.*)$')) {
-            throw 'Upstream must be in this format: <user>/<repo>:<branch>'
-        }
+        if (!($_ -match '^(.*)\/(.*):(.*)$')) { throw 'Upstream must be in this format: <user>/<repo>:<branch>' }
         $true
     })]
     [String] $Upstream,
     [String] $App = '*',
     [Parameter(Mandatory = $true)]
     [ValidateScript( {
-        if (!(Test-Path $_ -Type Container)) {
-            throw "$_ is not a directory!"
-        } else {
-            $true
-        }
+        if (!(Test-Path $_ -Type Container)) { throw "$_ is not a directory!" }
+        $true
     })]
     [String] $Dir,
     [Switch] $Push,
@@ -57,9 +52,11 @@ param(
     [Switch] $SkipCheckver
 )
 
-'manifest', 'json' | ForEach-Object {
-    . "$PSScriptRoot\..\lib\$_.ps1"
+'Helpers', 'manifest', 'json' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
+
+$Upstream | Out-Null # PowerShell/PSScriptAnalyzer#1472
 
 $Dir = Resolve-Path $Dir
 
@@ -80,18 +77,14 @@ Optional options:
 }
 
 if (!(Get-Command -Name 'hub' -CommandType Application -ErrorAction SilentlyContinue)) {
-    # TODO: Stop-ScoopExecution
-    Write-UserMessage -Message 'hub is required! Please refer to ''https://hub.github.com/'' to find out how to get hub for your platform.' -Warning
-    exit 1
+    Stop-ScoopExecution -Message 'hub is required! Please refer to ''https://hub.github.com/'' to find out how to get hub for your platform.'
 }
 
 function execute($cmd) {
     Write-Host $cmd -ForegroundColor Green
     $output = Invoke-Expression $cmd
 
-    if ($LASTEXITCODE -gt 0) {
-        abort "^^^ Error! See above ^^^ (last command: $cmd)"
-    }
+    if ($LASTEXITCODE -gt 0) { Stop-ScoopExecution -Message "^^^ Error! See above ^^^ (last command: $cmd)" }
 
     return $output
 }
@@ -141,7 +134,7 @@ a new version of [$app]($homepage) is available.
     hub pull-request -m "$msg" -b '$upstream' -h '$branch'
     if ($LASTEXITCODE -gt 0) {
         execute 'hub reset'
-        abort "Pull Request failed! (hub pull-request -m '${app}: Update to version $version' -b '$upstream' -h '$branch')"
+        Stop-ScoopExecution -Message "Pull Request failed! (hub pull-request -m '${app}: Update to version $version' -b '$upstream' -h '$branch')"
     }
 }
 
@@ -166,9 +159,7 @@ if (!$SkipCheckver) {
 
 hub diff --name-only | ForEach-Object {
     $manifest = $_
-    if (!$manifest.EndsWith('.json')) {
-        return
-    }
+    if (!$manifest.EndsWith('.json')) { return }
 
     $app = ([System.IO.Path]::GetFileNameWithoutExtension($manifest))
     $json = parse_json $manifest

@@ -8,13 +8,14 @@ Describe 'Style constraints for non-binary project files' {
         $files = @(
             # gather all files except '*.exe', '*.zip', or any .git repository files
             $repo_files |
-                Where-Object { $_.fullname -inotmatch $($project_file_exclusions -join '|') } |
-                Where-Object { $_.fullname -inotmatch '(.exe|.zip|.dll)$' } |
-                Where-Object { $_.fullname -inotmatch '(unformated)' }
+                Where-Object { $_.FullName -inotmatch $($project_file_exclusions -join '|') } |
+                Where-Object { $_.FullName -inotmatch '(.exe|.zip|.dll)$' } |
+                Where-Object { $_.FullName -inotmatch '(unformated)' }
         )
 
         $files_exist = ($files.Count -gt 0)
     }
+
     It $('non-binary project files exist ({0} found)' -f $files.Count) -skip:$(-not $files_exist) {
         if (-not ($files.Count -gt 0)) {
             throw "No non-binary project were found"
@@ -103,7 +104,7 @@ Describe 'Style constraints for non-binary project files' {
                     }
                 }
             }
-        )      
+        )
 
         if ($badLines.Count -gt 0) {
             throw "The following $($badLines.Count) lines contain trailing whitespace: `r`n`r`n$($badLines -join "`r`n")"
