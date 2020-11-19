@@ -203,7 +203,7 @@ function Invoke-Check {
         try {
             if ($Version -ne '') { $ver = $Version }
 
-            autoupdate $appName $Dir $json $ver $matchesHashtable
+            Invoke-Autoupdate $appName $Dir $json $ver $matchesHashtable
         } catch {
             Write-UserMessage -Message $_.Exception.Message -Err
         }
@@ -223,7 +223,7 @@ Get-ChildItem $Dir "$Search.*" -File | ForEach-Object {
 foreach ($q in $Queue) {
     $name, $json = $q
 
-    $substitutions = get_version_substitutions $json.version
+    $substitutions = Get-VersionSubstitution $json.version
 
     $wc = New-Object System.Net.Webclient
     $ua = $json.checkver.useragent

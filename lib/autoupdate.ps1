@@ -314,7 +314,7 @@ function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions)
     }
 }
 
-function get_version_substitutions([String] $version, [Hashtable] $customMatches) {
+function Get-VersionSubstitution ([String] $version, [Hashtable] $customMatches = @{ }) {
     $firstPart = $version -split '-' | Select-Object -First 1
     $lastPart = $version -split '-' | Select-Object -Last 1
     $versionVariables = @{
@@ -346,12 +346,12 @@ function get_version_substitutions([String] $version, [Hashtable] $customMatches
     return $versionVariables
 }
 
-function autoupdate([String] $app, $dir, $json, [String] $version, [Hashtable] $MatchesHashtable) {
+function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hashtable] $MatchesHashtable) {
     Write-UserMessage -Message "Autoupdating $app" -Color DarkCyan
     $has_changes = $false
     $has_errors = $false
     [bool] $valid = $true
-    $substitutions = get_version_substitutions $version $MatchesHashtable
+    $substitutions = Get-VersionSubstitution $version $MatchesHashtable
 
     if ($json.url) {
         # Create new url
