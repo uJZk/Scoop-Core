@@ -344,83 +344,225 @@ function Get-VersionSubstitution ([String] $Version, [Hashtable] $CustomMatches 
     return $versionVariables
 }
 
-function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hashtable] $MatchesHashtable) {
-    Write-UserMessage -Message "Autoupdating $app" -Color DarkCyan
-    $has_changes = $false
-    $has_errors = $false
-    [bool] $valid = $true
-    $substitutions = Get-VersionSubstitution -Version $version -CustomMatches $MatchesHashtable
+function Update-ManifestProperty {
+    [CmdletBinding()]
+    [OutputType([Boolean])]
+    param (
+        [Parameter(Mandatory)]
+        [Alias('InputObject')]
+        $Manifest,
+        [Parameter(ValueFromPipeline)]
+        [String[]] $Property,
+        [String] $AppName,
+        [String] $Version,
+        [HashTable] $Substitutions
+    )
 
-    if ($json.url) {
-        # Create new url
-        $url = Invoke-VariableSubstitution -Entity $json.autoupdate.url -Parameters $substitutions
-        $valid = $true
+    begin { $manifestChanged = $false }
 
-        if ($valid) {
-            # Create hash
-            $hash = get_hash_for_app $app $json.autoupdate.hash $version $url $substitutions
-            if ($null -eq $hash) {
-                $valid = $false
-                Write-UserMessage -Message 'Could not find hash!' -Color DarkRed
-            }
-        }
+    process {
+        $AppName | Out-Null # PowerShell/PSScriptAnalyzer#1472
 
-        # Write changes to the json object
-        if ($valid) {
-            $has_changes = $true
-            update_manifest_with_new_version $json $version $url $hash
-        } else {
-            $has_errors = $true
-            throw "Could not update $app"
-        }
-    } else {
-        $json.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
-            $valid = $true
-            $architecture = $_.Name
+        foreach ($prop in $Property) {
+            if ($prop -eq 'hash') {
+                if ($Manifest.hash) {
+                    # Substitute new value
+                    $newURL = Invoke-VariableSubstitution -Entity $Manifest.autoupdate.url -Parameters $Substitutions
+                    $newHash = _getHashesForUrls -AppName $AppName -Version $Version -HashExtraction $Manifest.autoupdate.hash -URL $newURL -Substitutions $Substitutions
 
-            # Create new url
-            $url = Invoke-VariableSubstitution -Entity (arch_specific "url" $json.autoupdate $architecture) -Parameters $substitutions
-            $valid = $true
+                    # Update manifest
+                    $Manifest.hash, $propertyChanged = _updateSpecificProperty -Property $Manifest.hash -Value $newHash
+                    $manifestChanged = $manifestChanged -or $propertyChanged
+                } else {
+                    # Arch-spec
+                    $Manifest.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
+                        $arch = $_.Name
+                        # Substitute new URLS
+                        $newURL = Invoke-VariableSubstitution -Entity (arch_specific 'url' $Manifest.autoupdate $arch) -Parameters $Substitutions
+                        # Calculate/extract hashes
+                        $newHash = _getHashesForUrls -AppName $AppName -Version $Version -HashExtraction (arch_specific 'hash' $Manifest.autoupdate $arch) -URL $newURL -Substitutions $Substitutions
 
-            if ($valid) {
-                # Create hash
-                $hash = get_hash_for_app $app (arch_specific "hash" $json.autoupdate $architecture) $version $url $substitutions
-                if ($null -eq $hash) {
-                    $valid = $false
-                    Write-UserMessage -Message 'Could not find hash!' -Color DarkRed
+                        # Update manifest
+                        $Manifest.architecture.$arch.hash, $propertyChanged = _updateSpecificProperty -Property $Manifest.architecture.$arch.hash -Value $newHash
+                        $manifestChanged = $manifestChanged -or $propertyChanged
+                    }
                 }
-            }
+                # Extract and update hash property
+            } elseif ($Manifest.$prop -and $Manifest.autoupdate.$Prop) {
+                # Substitute new value
+                $newValue = Invoke-VariableSubstitution -Entity $Manifest.autoupdate.$prop -Parameters $Substitutions
 
-            # Write changes to the json object
-            if ($valid) {
-                $has_changes = $true
-                update_manifest_with_new_version $json $version $url $hash $architecture
-            } else {
-                $has_errors = $true
-                throw "Could not update $app $architecture"
+                # Update manifest
+                $Manifest.$prop, $propertyChanged = _updateSpecificProperty -Property $Manifest.$prop -Value $newValue
+                $manifestChanged = $manifestChanged -or $propertyChanged
+            } elseif ($Manifest.architecture) {
+                # Substitute and update architecture specific property
+                $Manifest.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
+                    $arch = $_.Name
+                    if ($Manifest.architecture.$arch.$prop -and ($Manifest.autoupdate.architecture.$arch.$prop -or $Manifest.autoupdate.$prop)) {
+                        # Substitute new value
+                        $newValue = Invoke-VariableSubstitution -Entity (arch_specific $prop $Manifest.autoupdate $arch) -Parameters $Substitutions
+
+                        # Update manifest
+                        $Manifest.architecture.$arch.$prop, $propertyChanged = _updateSpecificProperty -Property $Manifest.architecture.$arch.$prop -Value $newValue
+                        $hasManifestChanged = $hasManifestChanged -or $propertyChanged
+                    }
+                }
             }
         }
     }
 
-    # Update properties
-    update_manifest_prop 'extract_dir' $json $substitutions
+    end {
+        if (($Version -ne '') -and ($Manifest.version -ne $Version)) {
+            $Manifest.version = $Version
+            $manifestChanged = $true
+        }
 
-    # Update license
-    update_manifest_prop 'license' $json $substitutions
+        return $manifestChanged
+    }
+}
 
-    if ($has_changes -and !$has_errors) {
-        # Write file
+function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hashtable] $MatchesHashtable) {
+    Write-Host "Autoupdating $app" -ForegroundColor DarkCyan
+    $Manifest = $json
+    $substitutions = Get-VersionSubstitution -Version $version -CustomMatches $MatchesHashtable
+
+    # Get properties, which needs to be updated
+    $updatedProperties = @(@($Manifest.autoupdate.PSObject.Properties.Name) -ne 'architecture')
+    if ($Manifest.autoupdate.architecture) {
+        $Manifest.autoupdate.architecture.PSObject.Properties | ForEach-Object {
+            $updatedProperties += $_.Value.PSObject.Properties.Name
+        }
+    }
+
+    # Hashes needs to be updated if not explicitly specified
+    if ($updatedProperties -contains 'url') { $updatedProperties += 'hash' }
+
+    $updatedProperties = $updatedProperties | Select-Object -Unique
+    debug [$updatedProperties]
+
+    $changed = Update-ManifestProperty -Manifest $Manifest -Property $updatedProperties -AppName $app -Version $version -Substitutions $substitutions
+
+    if ($changed) {
         Write-UserMessage -Message "Writing updated $app manifest" -Color DarkGreen
 
         $path = Join-Path $dir "$app.json"
-
-        $json | ConvertToPrettyJson | Out-UTF8File -Path $path
+        $Manifest | ConvertToPrettyJson | Out-UTF8File -Path $path
 
         # Notes
         if ($json.autoupdate.note) {
             Write-UserMessage -Message '', $json.autoupdate.note -Color DarkYellow
         }
     } else {
+        # This if-else branch may not be in use.
         Write-UserMessage -Message "No updates for $app" -Color DarkGray
     }
 }
+
+#region Helpers
+function _updateSpecificProperty {
+    <#
+    .SYNOPSIS
+        Helper for updating manifest's property
+    .DESCRIPTION
+        Updates manifest property (String, Array or PSCustomObject).
+    .PARAMETER Property
+        Specifies the name of property to be updated.
+    .PARAMETER Value
+        Specifies the new value of property.
+        Update line by line.
+    .OUTPUTS
+        System.Object[]
+            The first element is new value of property, the second element is change flag
+    #>
+    param (
+        [ValidateNotNull()]
+        [Parameter(Mandatory, ValueFromPipeline)]
+        [Object] $Property,
+        [Parameter(Mandatory)]
+        [Object] $Value
+    )
+    begin {
+        $result = $Property
+        $hasChanged = $false
+    }
+
+    process {
+        # Bind value into property in case the new value is "longer" than current.
+        if (@($Property).Length -lt @($Value).Length) {
+            $result = $Value
+            $hasChanged = $true
+        } else {
+            switch ($Property.GetType().Name) {
+                'String' {
+                    $val = $Value -as [String]
+                    if ($null -ne $val) {
+                        $result = $val
+                        $hasChanged = $true
+                    }
+                }
+                'Object[]' {
+                    $val = @($Value)
+                    for ($i = 0; $i -lt $val.Length; $i++) {
+                        $result[$i], $itemChanged = _updateSpecificProperty -Property $Property[$i] -Value $val[$i]
+                        $hasChanged = $hasChanged -or $itemChanged
+                    }
+                }
+                'PSCustomObject' {
+                    if ($Value -is [PSObject]) {
+                        foreach ($name in $Property.PSObject.Properties.Name) {
+                            if ($Value.$name) {
+                                $result.$name, $itemChanged = _updateSpecificProperty -Property $Property.$name -Value $Value.$name
+                                $hasChanged = $hasChanged -or $itemChanged
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    end { return $result, $hasChanged }
+}
+
+function _getHashesForUrls {
+    <#
+    .SYNOPSIS
+        Helper for extracting hashes.
+    .DESCRIPTION
+        Extract or calculate hash(es) for provided URLs.
+        If number of hash extraction templates is less then URLs, the last template will be reused for the rest URLs.
+    .PARAMETER AppName
+        Specifies the name of the application.
+    .PARAMETER Version
+        Specifies the version of the application.
+    .PARAMETER HashExtraction
+        Specifeis the extraction method.
+    .PARAMETER URL
+        Specifes the links to updated files.
+    .PARAMETER Substitutions
+        Specifes the hashtable with substitutions.
+    #>
+    param (
+        [String] $AppName,
+        [String] $Version,
+        [PSObject[]] $HashExtraction,
+        [String[]] $URL,
+        [HashTable] $Substitutions
+    )
+    $hash = @()
+    for ($i = 0; $i -lt $URL.Length; $i++) {
+        if ($null -eq $HashExtraction) {
+            $extract = $null
+        } else {
+            $extract = $HashExtraction[$i], $HashExtraction[-1] | Select-Object -First 1
+        }
+        $hash += get_hash_for_app $AppName $extract $Version $URL[$i] $Substitutions
+        if ($null -eq $hash[$i]) {
+            throw "Could not update $AppName, hash for $(url_remote_filename $URL[$i]) failed!"
+        }
+    }
+
+    return $hash
+}
+#endregion Helpers
