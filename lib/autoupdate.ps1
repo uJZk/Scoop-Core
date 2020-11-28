@@ -274,46 +274,6 @@ function get_hash_for_app([String] $app, $config, [String] $version, [String] $u
     return $hash
 }
 
-function update_manifest_with_new_version($json, [String] $version, [String] $url, [String] $hash, $architecture = $null) {
-    $json.version = $version
-
-    if ($null -eq $architecture) {
-        if ($json.url -is [System.Array]) {
-            $json.url[0] = $url
-            $json.hash[0] = $hash
-        } else {
-            $json.url = $url
-            $json.hash = $hash
-        }
-    } else {
-        # If there are multiple urls we replace the first one
-        if ($json.architecture.$architecture.url -is [System.Array]) {
-            $json.architecture.$architecture.url[0] = $url
-            $json.architecture.$architecture.hash[0] = $hash
-        } else {
-            $json.architecture.$architecture.url = $url
-            $json.architecture.$architecture.hash = $hash
-        }
-    }
-}
-
-function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions) {
-    # first try the global property
-    if ($json.$prop -and $json.autoupdate.$prop) {
-        $json.$prop = Invoke-VariableSubstitution -Entity $json.autoupdate.$prop -Parameters $substitutions
-    }
-
-    # check if there are architecture specific variants
-    if ($json.architecture -and $json.autoupdate.architecture) {
-        $json.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
-            $architecture = $_.Name
-            if ($json.architecture.$architecture.$prop -and $json.autoupdate.architecture.$architecture.$prop) {
-                $json.architecture.$architecture.$prop = Invoke-VariableSubstitution -Entity (arch_specific $prop $json.autoupdate $architecture) -Parameters $substitutions
-            }
-        }
-    }
-}
-
 function Get-VersionSubstitution ([String] $Version, [Hashtable] $CustomMatches = @{ }) {
     $firstPart = $Version -split '-' | Select-Object -First 1
     $lastPart = $Version -split '-' | Select-Object -Last 1

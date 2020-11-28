@@ -863,10 +863,10 @@ function Invoke-VariableSubstitution {
                     }
                 }
                 'Object[]' {
-                    $newEntity = $newEntity | ForEach-Object { Invoke-VariableSubstitution -Entity $_ -Parameters $params -EscapeRegularExpression:$regexEscape }
+                    $newEntity = $newEntity | ForEach-Object { Invoke-VariableSubstitution -Entity $_ -Parameters $Parameters -EscapeRegularExpression:$regexEscape }
                 }
                 'PSCustomObject' {
-                    $newentity.PSObject.Properties | ForEach-Object { $_.Value = Invoke-VariableSubstitution -Entity $_ -Parameters $params -EscapeRegularExpression:$regexEscape }
+                    $newentity.PSObject.Properties | ForEach-Object { $_.Value = Invoke-VariableSubstitution -Entity $_ -Parameters $Parameters -EscapeRegularExpression:$regexEscape }
                 }
                 default {
                     # This is not needed, but to cover all possible use cases explicitly
