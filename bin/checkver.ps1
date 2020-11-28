@@ -223,7 +223,7 @@ Get-ChildItem $Dir "$Search.*" -File | ForEach-Object {
 foreach ($q in $Queue) {
     $name, $json = $q
 
-    $substitutions = Get-VersionSubstitution $json.version
+    $substitutions = Get-VersionSubstitution -Version $json.version
 
     $wc = New-Object System.Net.Webclient
     $ua = $json.checkver.useragent

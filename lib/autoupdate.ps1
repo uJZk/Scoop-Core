@@ -314,32 +314,30 @@ function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions)
     }
 }
 
-function Get-VersionSubstitution ([String] $version, [Hashtable] $customMatches = @{ }) {
-    $firstPart = $version -split '-' | Select-Object -First 1
-    $lastPart = $version -split '-' | Select-Object -Last 1
+function Get-VersionSubstitution ([String] $Version, [Hashtable] $CustomMatches = @{ }) {
+    $firstPart = $Version -split '-' | Select-Object -First 1
+    $lastPart = $Version -split '-' | Select-Object -Last 1
     $versionVariables = @{
-        '$version'           = $version
-        '$underscoreVersion' = ($version -replace '\.', '_')
-        '$dashVersion'       = ($version -replace '\.', '-')
-        '$cleanVersion'      = ($version -replace '\.')
+        '$version'           = $Version
+        '$underscoreVersion' = ($Version -replace '\.', '_')
+        '$dashVersion'       = ($Version -replace '\.', '-')
+        '$cleanVersion'      = ($Version -replace '\.')
         '$majorVersion'      = ($firstPart -split '\.' | Select-Object -First 1)
         '$minorVersion'      = ($firstPart -split '\.' | Select-Object -Skip 1 -First 1)
         '$patchVersion'      = ($firstPart -split '\.' | Select-Object -Skip 2 -First 1)
         '$buildVersion'      = ($firstPart -split '\.' | Select-Object -Skip 3 -First 1)
         '$preReleaseVersion' = $lastPart
     }
-    if ($version -match '(?<head>\d+\.\d+(?:\.\d+)?)(?<tail>.*)') {
+    if ($Version -match '(?<head>\d+\.\d+(?:\.\d+)?)(?<tail>.*)') {
         $versionVariables.Add('$matchHead', $Matches['head'])
         $versionVariables.Add('$headVersion', $Matches['head'])
         $versionVariables.Add('$matchTail', $Matches['tail'])
         $versionVariables.Add('$tailVersion', $Matches['tail'])
     }
-    if ($customMatches) {
-        $customMatches.GetEnumerator() | ForEach-Object {
-            if ($_.Name -ne '0') {
-                # .Add() cannot be used due to unskilled maintainers, who could use internal $matchHead or $matchTail variable and recive exception
-                $versionVariables.set_Item('$match' + (Get-Culture).TextInfo.ToTitleCase($_.Name), $_.Value)
-            }
+    if ($CustomMatches) {
+        $CustomMatches.GetEnumerator() | Where-Object -Property Name -NE -Value '0' | ForEach-Object {
+            # .Add() cannot be used due to unskilled maintainers, who could use internal $matchHead or $matchTail variable and receive exception
+            $versionVariables.set_Item('$match' + (Get-Culture).TextInfo.ToTitleCase($_.Name), $_.Value)
         }
     }
 
@@ -351,7 +349,7 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
     $has_changes = $false
     $has_errors = $false
     [bool] $valid = $true
-    $substitutions = Get-VersionSubstitution $version $MatchesHashtable
+    $substitutions = Get-VersionSubstitution -Version $version -CustomMatches $MatchesHashtable
 
     if ($json.url) {
         # Create new url
