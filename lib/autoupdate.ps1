@@ -49,8 +49,8 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
 
     if ($regex.Length -eq 0) { $regex = '^([a-fA-F\d]+)$' }
 
-    $regex = substitute $regex $templates $false
-    $regex = substitute $regex $substitutions $true
+    $regex = Invoke-VariableSubstitution -Entity $regex -Parameters $templates -EscapeRegularExpression:$false
+    $regex = Invoke-VariableSubstitution -Entity $regex -Parameters $substitutions -EscapeRegularExpression:$true
 
     debug $regex
 
@@ -59,7 +59,7 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
     # Find hash with filename in $hashfile
     if ($hash.Length -eq 0) {
         $filenameRegex = "([a-fA-F\d]{32,128})[\x20\t]+.*`$basename(?:[\x20\t]+\d+)?"
-        $filenameRegex = substitute $filenameRegex $substitutions $true
+        $filenameRegex = Invoke-VariableSubstitution -Entity $filenameRegex -Parameters $substitutions -EscapeRegularExpression:$true
         if ($hashfile -match $filenameRegex) {
             $hash = $Matches[1]
         }
@@ -111,7 +111,7 @@ function find_hash_in_xml([String] $url, [Hashtable] $substitutions, [String] $x
     $xml = [xml] $xml
 
     # Replace placeholders
-    if ($substitutions) { $xpath = substitute $xpath $substitutions }
+    if ($substitutions) { $xpath = Invoke-VariableSubstitution -Entity $xpath -Parameters $substitutions }
 
     # Find all `significant namespace declarations` from the XML file
     $nsList = $xml.SelectNodes('//namespace::*[not(. = ../../namespace::*)]')
@@ -168,7 +168,7 @@ function get_hash_for_app([String] $app, $config, [String] $version, [String] $u
 
     debug $substitutions
 
-    $hashfile_url = substitute $config.url $substitutions
+    $hashfile_url = Invoke-VariableSubstitution -Entity $config.url -Parameters $substitutions
 
     debug $hashfile_url
 
@@ -300,7 +300,7 @@ function update_manifest_with_new_version($json, [String] $version, [String] $ur
 function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions) {
     # first try the global property
     if ($json.$prop -and $json.autoupdate.$prop) {
-        $json.$prop = substitute $json.autoupdate.$prop $substitutions
+        $json.$prop = Invoke-VariableSubstitution -Entity $json.autoupdate.$prop -Parameters $substitutions
     }
 
     # check if there are architecture specific variants
@@ -308,7 +308,7 @@ function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions)
         $json.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
             $architecture = $_.Name
             if ($json.architecture.$architecture.$prop -and $json.autoupdate.architecture.$architecture.$prop) {
-                $json.architecture.$architecture.$prop = substitute (arch_specific $prop $json.autoupdate $architecture) $substitutions
+                $json.architecture.$architecture.$prop = Invoke-VariableSubstitution -Entity (arch_specific $prop $json.autoupdate $architecture) -Parameters $substitutions
             }
         }
     }
@@ -355,7 +355,7 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
 
     if ($json.url) {
         # Create new url
-        $url = substitute $json.autoupdate.url $substitutions
+        $url = Invoke-VariableSubstitution -Entity $json.autoupdate.url -Parameters $substitutions
         $valid = $true
 
         if ($valid) {
@@ -381,7 +381,7 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
             $architecture = $_.Name
 
             # Create new url
-            $url = substitute (arch_specific "url" $json.autoupdate $architecture) $substitutions
+            $url = Invoke-VariableSubstitution -Entity (arch_specific "url" $json.autoupdate $architecture) -Parameters $substitutions
             $valid = $true
 
             if ($valid) {
