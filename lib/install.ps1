@@ -1,4 +1,4 @@
-'Helpers', 'autoupdate', 'buckets', 'decompress' | ForEach-Object {
+'Helpers', 'autoupdate', 'buckets', 'decompress', 'manifest', 'ManifestHelpers' | ForEach-Object {
     . (Join-Path $PSScriptRoot "$_.ps1")
 }
 
@@ -60,12 +60,18 @@ function install_app($app, $architecture, $global, $suggested, $use_cache = $tru
         Write-UserMessage -Message "By installing you accept following $(pluralize $id.Count 'license' 'licenses'): $toShow" -Warn
     }
 
-    $dir = ensure (versiondir $app $version $global)
+    # Variables
+    $dir = versiondir $app $version $global | Confirm-DirectoryExistence
+    $current_dir = current_dir $dir # Save some lines in manifests
     $original_dir = $dir # Keep reference to real (not linked) directory
     $persist_dir = persistdir $app $global
 
+    # Download and extraction
+    Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_download' -Architecture $architecture
     $fname = dl_urls $app $version $manifest $bucket $architecture $dir $use_cache $check_hash
-    pre_install $manifest $architecture
+
+    # Installers
+    Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_install' -Architecture $architecture
     run_installer $fname $manifest $architecture $dir $global
     ensure_install_dir_not_in_path $dir $global
     $dir = link_current $dir
@@ -80,19 +86,25 @@ function install_app($app, $architecture, $global, $suggested, $use_cache = $tru
     persist_data $manifest $original_dir $persist_dir
     persist_permission $manifest $global
 
-    post_install $manifest $architecture
+    Invoke-ManifestScript -Manifest $manifest -ScriptName 'post_install' -Architecture $architecture
 
     # Save info for uninstall
     save_installed_manifest $app $bucket $dir $url
     save_install_info @{ 'architecture' = $architecture; 'url' = $url; 'bucket' = $bucket } $dir
 
-    if ($manifest.suggest) {
-        $suggested[$app] = $manifest.suggest
-    }
+    if ($manifest.suggest) { $suggested[$app] = $manifest.suggest }
 
     Write-UserMessage -Message "'$app' ($version) was installed successfully!" -Success
 
+    # Additional info to user
     show_notes $manifest $dir $original_dir $persist_dir
+
+    if ($manifest.changelog) {
+        $changelog = $manifest.changelog
+        if (!$changelog.StartsWith('http')) { $changelog = friendly_path (Join-Path $dir $changelog) }
+
+        Write-UserMessage -Message "New changes in this release: '$changelog'" -Success
+    }
 }
 
 function locate($app, $bucket) {
@@ -113,8 +125,9 @@ function Find-Manifest($app, $bucket) {
         $manifest, $bucket = find_manifest $app $bucket
 
         if (!$manifest) {
-            # Couldn't find app in buckets: check if it's a local path
+            # Could not find app in buckets: check if it's a local path
             $path = $app
+            # TODO: YAML
             if (!$path.endswith('.json')) { $path += '.json' }
             if (Test-Path $path) {
                 $url = "$(Resolve-Path $path)"
@@ -612,6 +625,9 @@ function dl_urls($app, $version, $manifest, $bucket, $architecture, $dir, $use_c
         } elseif (Test-7zipRequirement -File $fname) {
             # 7zip
             $extract_fn = 'Expand-7zipArchive'
+        } elseif (Test-ZstdRequirement -File $fname) {
+            # Zstd
+            $extract_fn = 'Expand-ZstdArchive'
         }
 
         if ($extract_fn) {
@@ -728,16 +744,28 @@ function run_installer($fname, $manifest, $architecture, $dir, $global) {
     # MSI or other installer
     $msi = msi $manifest $architecture
     $installer = installer $manifest $architecture
-    if ($installer.script) {
-        Write-UserMessage -Message 'Running installer script...' -Output:$false
-        Invoke-Expression (@($installer.script) -join "`r`n")
-        return
+    $script = $installer.script
+
+    if ($script) {
+        # Skip installer if installer property specifies only 1 property == script
+        # If there is file or args next to the script, both should be called, script first
+        $props = @($installer.PSObject.Properties | Where-Object -Property 'MemberType' -EQ -Value 'NoteProperty' | Select-Object -ExpandProperty 'Name')
+        if ($props -and ($props.Count -eq 1) -and ($props -contains 'script')) {
+            $skipInstaller = $true
+        }
     }
 
     if ($msi) {
         install_msi $fname $dir $msi
-    } elseif ($installer) {
+    } elseif ($installer -and !$skipInstaller) {
         install_prog $fname $dir $installer $global
+    }
+
+    # Run installer.script after installer.file
+    # This allow to modify files after installer was executed and before binaries/shortcuts are created/linked
+    if ($script) {
+        Write-UserMessage -Message 'Running installer script...' -Output:$false
+        Invoke-Expression (@($script) -join "`r`n")
     }
 }
 
@@ -788,17 +816,20 @@ function install_prog($fname, $dir, $installer, $global) {
     $arg = @(args $installer.args $dir $global)
 
     if ($prog.EndsWith('.ps1')) {
+        Write-UserMessage -Message "Running installer file '$prog'" -Output:$false
         & $prog @arg
-        # TODO: Handle $LASTEXITCODE
+        if ($LASTEXITCODE -ne 0) {
+            throw [ScoopException] "Installation failed with exit code $LASTEXITCODE" # TerminatingError thrown
+        }
     } else {
         $installed = Invoke-ExternalCommand $prog $arg -Activity 'Running installer...'
         if (!$installed) {
             throw [ScoopException] "Installation aborted. You might need to run 'scoop uninstall $app' before trying again." # TerminatingError thrown
         }
-
-        # Don't remove installer if "keep" flag is set to true
-        if ($installer.keep -ne 'true') { Remove-Item $prog }
     }
+
+    # Do not remove installer if "keep" flag is set to true
+    if ($installer.keep -ne 'true') { Remove-Item $prog }
 }
 
 function run_uninstaller($manifest, $architecture, $dir) {
@@ -875,7 +906,7 @@ function create_shims($manifest, $dir, $global, $arch) {
 
         if (!$bin) { throw [ScoopException] "Shim creation fail|-Cannot shim '$target': File does not exist" } # TerminatingError thrown
 
-        shim $bin $global $name (Invoke-VariableSubstitution -Entity $arg -Parameters @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir })
+        shim $bin $global $name (Invoke-VariableSubstitution -Entity $arg -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir })
     }
 }
 
@@ -911,8 +942,7 @@ function rm_shims($manifest, $global, $arch) {
 # Gets the path for the 'current' directory junction for
 # the specified version directory.
 function current_dir($versiondir) {
-    $parent = Split-Path $versiondir
-    return Join-Path $parent 'current'
+    return Split-Path -LiteralPath $versiondir | Join-Path -ChildPath 'current'
 }
 
 
@@ -1046,28 +1076,12 @@ function env_rm($manifest, $global, $arch) {
     }
 }
 
-function pre_install($manifest, $arch) {
-    $pre_install = arch_specific 'pre_install' $manifest $arch
-    if ($pre_install) {
-        Write-UserMessage -Message 'Running pre-install script...' -Output:$false
-        Invoke-Expression (@($pre_install) -join "`r`n")
-    }
-}
-
-function post_install($manifest, $arch) {
-    $post_install = arch_specific 'post_install' $manifest $arch
-    if ($post_install) {
-        Write-UserMessage -Message 'Running post-install script...' -Output:$false
-        Invoke-Expression (@($post_install) -join "`r`n")
-    }
-}
-
 function show_notes($manifest, $dir, $original_dir, $persist_dir) {
     if ($manifest.notes) {
         Write-UserMessage -Output:$false -Message @(
             'Notes'
             '-----'
-            (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Parameters @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
+            (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
         )
     }
 }

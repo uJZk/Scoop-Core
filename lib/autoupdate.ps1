@@ -11,7 +11,7 @@ function find_hash_in_rdf([String] $url, [String] $basename) {
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $data = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
-        Write-UserMessage -Message $_, "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
 
         return $null
     }
@@ -42,15 +42,15 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $hashfile = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
-        Write-UserMessage -Message $_, "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
         return
     }
     if (Test-ScoopDebugEnabled) { Join-Path $PWD 'checkver-hash-txt.html' | Out-UTF8Content -Content $hashfile }
 
     if ($regex.Length -eq 0) { $regex = '^([a-fA-F\d]+)$' }
 
-    $regex = Invoke-VariableSubstitution -Entity $regex -Parameters $templates -EscapeRegularExpression:$false
-    $regex = Invoke-VariableSubstitution -Entity $regex -Parameters $substitutions -EscapeRegularExpression:$true
+    $regex = Invoke-VariableSubstitution -Entity $regex -Substitutes $templates -EscapeRegularExpression:$false
+    $regex = Invoke-VariableSubstitution -Entity $regex -Substitutes $substitutions -EscapeRegularExpression:$true
 
     debug $regex
 
@@ -59,7 +59,7 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
     # Find hash with filename in $hashfile
     if ($hash.Length -eq 0) {
         $filenameRegex = "([a-fA-F\d]{32,128})[\x20\t]+.*`$basename(?:[\x20\t]+\d+)?"
-        $filenameRegex = Invoke-VariableSubstitution -Entity $filenameRegex -Parameters $substitutions -EscapeRegularExpression:$true
+        $filenameRegex = Invoke-VariableSubstitution -Entity $filenameRegex -Substitutes $substitutions -EscapeRegularExpression:$true
         if ($hashfile -match $filenameRegex) {
             $hash = $Matches[1]
         }
@@ -81,7 +81,7 @@ function find_hash_in_json([String] $url, [Hashtable] $substitutions, [String] $
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $json = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
-        Write-UserMessage -Message $_, "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
         return
     }
     if (Test-ScoopDebugEnabled) { Join-Path $PWD 'checkver-hash-json.html' | Out-UTF8Content -Content $json }
@@ -103,7 +103,7 @@ function find_hash_in_xml([String] $url, [Hashtable] $substitutions, [String] $x
         $wc.Headers.Add('User-Agent', (Get-UserAgent))
         $xml = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
-        Write-UserMessage -Message $_, "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
         return
     }
 
@@ -111,7 +111,7 @@ function find_hash_in_xml([String] $url, [Hashtable] $substitutions, [String] $x
     $xml = [xml] $xml
 
     # Replace placeholders
-    if ($substitutions) { $xpath = Invoke-VariableSubstitution -Entity $xpath -Parameters $substitutions }
+    if ($substitutions) { $xpath = Invoke-VariableSubstitution -Entity $xpath -Substitutes $substitutions }
 
     # Find all `significant namespace declarations` from the XML file
     $nsList = $xml.SelectNodes('//namespace::*[not(. = ../../namespace::*)]')
@@ -146,7 +146,7 @@ function find_hash_in_headers([String] $url) {
         }
         $res.Close()
     } catch [System.Net.WebException] {
-        Write-UserMessage -Message $_, "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
         return
     }
 
@@ -168,15 +168,15 @@ function get_hash_for_app([String] $app, $config, [String] $version, [String] $u
 
     debug $substitutions
 
-    $hashfile_url = Invoke-VariableSubstitution -Entity $config.url -Parameters $substitutions
+    $hashfile_url = Invoke-VariableSubstitution -Entity $config.url -Substitutes $substitutions
 
     debug $hashfile_url
 
     if ($hashfile_url) {
-        Write-Host 'Searching hash for ' -ForegroundColor DarkYellow -NoNewline
-        Write-Host $basename -ForegroundColor Green -NoNewline
-        Write-Host ' in ' -ForegroundColor DarkYellow -NoNewline
-        Write-Host $hashfile_url -ForegroundColor Green
+        Write-Host 'Searching hash for ' -ForegroundColor 'DarkYellow' -NoNewline
+        Write-Host $basename -ForegroundColor 'Green' -NoNewline
+        Write-Host ' in ' -ForegroundColor 'DarkYellow' -NoNewline
+        Write-Host $hashfile_url -ForegroundColor 'Green'
     }
 
     if ($hashmode.Length -eq 0 -and $config.url.Length -ne 0) {
@@ -246,30 +246,44 @@ function get_hash_for_app([String] $app, $config, [String] $version, [String] $u
     }
 
     if ($hash) {
-        Write-Host 'Found: ' -ForegroundColor DarkYellow -NoNewline
-        Write-Host $hash -ForegroundColor Green -NoNewline
-        Write-Host ' using ' -ForegroundColor DarkYellow -NoNewline
-        Write-Host "$((Get-Culture).TextInfo.ToTitleCase($hashmode)) Mode" -ForegroundColor Green
+        Write-Host 'Found: ' -ForegroundColor 'DarkYellow' -NoNewline
+        Write-Host $hash -ForegroundColor 'Green' -NoNewline
+        Write-Host ' using ' -ForegroundColor 'DarkYellow' -NoNewline
+        Write-Host "$((Get-Culture).TextInfo.ToTitleCase($hashmode)) Mode" -ForegroundColor 'Green'
+
+        # Verify the URL is accessible
+        Write-Host 'Pinging ' -ForegroundColor 'Yellow' -NoNewline
+        Write-Host $url -ForegroundColor 'Green' -NoNewline
+        Write-Host ' to verify URL accessibility' -ForegroundColor 'Yellow'
+        $request = [System.Net.WebRequest]::Create($url) # TODO: Consider spliting #/ from URL to prevent potential faulty response
+        $request.AllowAutoRedirect = $true
+        try {
+            $response = $request.GetResponse()
+            $response.Close()
+        } catch {
+            Write-UserMessage -Message "URL $url is not valid" -Color 'DarkRed'
+            $hash = $null
+        }
 
         return $hash
     } elseif ($hashfile_url) {
-        Write-UserMessage -Message "Could not find hash in $hashfile_url" -Color DarkYellow
+        Write-UserMessage -Message "Could not find hash in $hashfile_url" -Color 'DarkYellow'
     }
 
-    Write-Host 'Downloading ' -ForegroundColor DarkYellow -NoNewline
-    Write-Host $basename -ForegroundColor Green -NoNewline
-    Write-Host ' to compute hashes!' -ForegroundColor DarkYellow
+    Write-Host 'Downloading ' -ForegroundColor 'DarkYellow' -NoNewline
+    Write-Host $basename -ForegroundColor 'Green' -NoNewline
+    Write-Host ' to compute hashes!' -ForegroundColor 'DarkYellow'
 
     try {
         dl_with_cache $app $version $url $null $null $true
     } catch {
-        Write-UserMessage -Message "URL $url is not valid" -Color DarkRed
+        Write-UserMessage -Message "URL $url is not valid" -Color 'DarkRed'
         return $null
     }
     $file = cache_path $app $version $url
     $hash = compute_hash $file 'sha256'
-    Write-Host 'Computed hash: ' -ForegroundColor DarkYellow -NoNewline
-    Write-Host $hash -ForegroundColor Green
+    Write-Host 'Computed hash: ' -ForegroundColor 'DarkYellow' -NoNewline
+    Write-Host $hash -ForegroundColor 'Green'
 
     return $hash
 }
@@ -403,20 +417,17 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
 
     $changed = Update-ManifestProperty -Manifest $Manifest -Property $updatedProperties -AppName $app -Version $version -Substitutions $substitutions
 
+    $newManifest = $null
     if ($changed) {
-        Write-UserMessage -Message "Writing updated $app manifest" -Color DarkGreen
-
-        $path = Join-Path $dir "$app.json"
-        $Manifest | ConvertToPrettyJson | Out-UTF8File -Path $path
-
         # Notes
-        if ($json.autoupdate.note) {
-            Write-UserMessage -Message '', $json.autoupdate.note -Color DarkYellow
-        }
+        if ($json.autoupdate.note) { Write-UserMessage -Message '', $json.autoupdate.note -Color 'DarkYellow' }
+
+        $newManifest = $json
     } else {
-        # This if-else branch may not be in use.
-        Write-UserMessage -Message "No updates for $app" -Color DarkGray
+        Write-UserMessage -Message "No updates for $app" -Color 'DarkGray'
     }
+
+    return $newManifest
 }
 
 #region Helpers
