@@ -145,8 +145,11 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     }
     #endregion Architecture properties sort
 
+    #region Backslash replaces (bin, shortcuts, extract_dir, persist, env_add_path, env_set)
+    #endregion Backslash replaces (bin, shortcuts, extract_dir, persist, env_add_path, env_set)
+
     $newManifest = [PSCustomObject] @{ }
-    '##', '_comment', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'depends' | ForEach-Object {
+    '##', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'depends' | ForEach-Object {
         if ($manifest.$_) {
             $newManifest | Add-Member -MemberType 'NoteProperty' -Name $_ -Value $manifest.$_
             $manifest.PSObject.Properties.Remove($_)
