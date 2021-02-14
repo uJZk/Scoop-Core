@@ -28,33 +28,21 @@ param(
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-$Dir = Resolve-Path $Dir
-$exitCode = 0
-$problems = 0
-
 function _infoMes ($name, $mes) { Write-UserMessage -Message "${name}: $mes" -Info }
 
-foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
-    $name = $gci.Basename
-    if ($gci.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
-        Write-UserMessage "Skipping $($gci.Name)" -Info
-        continue
-    }
+#region Formatters
+$persistBlock = {
+    $new = @()
+    $args | ForEach-Object { $new += $_ -replace '/', '\' }
 
-    try {
-        $manifest = ConvertFrom-Manifest -Path $gci.FullName
-    } catch {
-        Write-UserMessage -Message "Invalid manifest: $($gci.Name)" -Err
-        ++$problems
-        continue
-    }
+    return $new
+}
 
-    #region Migrations and fixes
-    #region Checkver
-    $checkver = $manifest.checkver
+$checkverBlock = {
+    $checkver = $args[0]
     if ($checkver -and ($checkver.GetType() -ne [System.String])) {
         # Remove not needed url
-        if ($checkver.url -and ($checkver.url -eq $manifest.homepage)) {
+        if ($checkver.url -and ($checkver.url -eq $Manifest.homepage)) {
             _infoMes $name 'Removing checkver.url (same as homepage)'
             $checkver.PSObject.Properties.Remove('url')
         }
@@ -102,8 +90,59 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
             $checkver = 'github'
         }
 
-        $manifest.checkver = $checkver
+        return $checkver
     }
+}
+#endregion Formatters
+
+function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAutoupdate, [Switch] $SkipArchitecture) {
+    $prop = $Manifest.$Property
+    # Generic property
+    if ($prop) {
+        $Manifest.$Property = $ScriptBlock.Invoke($prop)
+    }
+
+    # Architecture specific
+    $archSpec = $Manifest.architecture
+    if (!$SkipArchitecture -and $archSpec) {
+        # TODO: Multiple architectures
+        '64bit', '32bit' | ForEach-Object {
+            if ($archSpec.$_ -and $archSpec.$_.$Property) {
+                $archSpec.$_.$Property = $ScriptBlock.Invoke($archSpec.$_.$Property)
+            }
+        }
+    }
+
+    # Autoupdate
+    if (!$SkipAutoupdate -and $Manifest.autoupdate) {
+        $Manifest.autoupdate = _adjustProperty -Manifest $Manifest.autoupdate -Property $Property -ScriptBlock $ScriptBlock
+    }
+
+    return $Manifest
+}
+
+$Dir = Resolve-Path $Dir
+$exitCode = 0
+$problems = 0
+
+foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
+    $name = $gci.Basename
+    if ($gci.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
+        Write-UserMessage "Skipping $($gci.Name)" -Info
+        continue
+    }
+
+    try {
+        $manifest = ConvertFrom-Manifest -Path $gci.FullName
+    } catch {
+        Write-UserMessage -Message "Invalid manifest: $($gci.Name)" -Err
+        ++$problems
+        continue
+    }
+
+    #region Migrations and fixes
+    #region Checkver
+    $manifest = _adjustProperty -Manifest $Manifest -Property 'checkver' -ScriptBlock $checkverBlock -SkipAutoupdate -SkipArchitecture
     #endregion Checkver
 
     #region Architecture properties sort
@@ -145,8 +184,10 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     }
     #endregion Architecture properties sort
 
-    #region Backslash replaces (bin, shortcuts, extract_dir, persist, env_add_path, env_set)
-    #endregion Backslash replaces (bin, shortcuts, extract_dir, persist, env_add_path, env_set)
+    #region Backslash replaces
+    $manifest = _adjustProperty -Manifest $manifest -Property 'env_add_path' -ScriptBlock $persistBlock
+    $manifest = _adjustProperty -Manifest $manifest -Property 'persist' -ScriptBlock $persistBlock
+    #endregion Backslash replaces
 
     $newManifest = [PSCustomObject] @{ }
     '##', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'depends' | ForEach-Object {
