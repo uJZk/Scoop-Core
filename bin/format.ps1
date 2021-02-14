@@ -39,7 +39,7 @@ $persistBlock = {
 }
 
 $checkverBlock = {
-    $checkver = $args[0]
+    $checkver = $args
     if ($checkver -and ($checkver.GetType() -ne [System.String])) {
         # Remove not needed url
         if ($checkver.url -and ($checkver.url -eq $Manifest.homepage)) {
@@ -89,9 +89,9 @@ $checkverBlock = {
 
             $checkver = 'github'
         }
-
-        return $checkver
     }
+
+    return $checkver
 }
 #endregion Formatters
 
