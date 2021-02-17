@@ -7,10 +7,10 @@
 .PARAMETER Dir
     Specifies the location of manifests.
 .EXAMPLE
-    PS BUCKETROOT> .\bin\formatjson.ps1
+    PS BUCKETROOT> .\bin\format.ps1
     Format all manifests inside bucket directory.
 .EXAMPLE
-    PS BUCKETROOT> .\bin\formatjson.ps1 7zip
+    PS BUCKETROOT> .\bin\format.ps1 7zip
     Format manifest '7zip' inside bucket directory.
 #>
 param(
@@ -30,6 +30,30 @@ param(
 
 function _infoMes ($name, $mes) { Write-UserMessage -Message "${name}: $mes" -Info }
 
+function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAutoupdate, [Switch] $SkipArchitecture) {
+    $prop = $Manifest.$Property
+    if ($prop) {
+        $Manifest.$Property = $ScriptBlock.Invoke($prop)[0]
+    }
+
+    # Architecture specific
+    $archSpec = $Manifest.architecture
+    if (!$SkipArchitecture -and $archSpec) {
+        (Get-NotePropertyEnumerator -Object $archSpec).Name | ForEach-Object {
+            if ($archSpec.$_ -and $archSpec.$_.$Property) {
+                $Manifest.architecture.$_.$Property = $ScriptBlock.Invoke($archSpec.$_.$Property)
+            }
+        }
+
+    }
+
+    if (!$SkipAutoupdate -and $Manifest.autoupdate) {
+        $Manifest.autoupdate = _adjustProperty -Manifest $Manifest.autoupdate -Property $Property -ScriptBlock $ScriptBlock -SkipAutoupdate
+    }
+
+    return $Manifest
+}
+
 #region Formatters
 $persistBlock = {
     $new = @()
@@ -38,8 +62,8 @@ $persistBlock = {
     return $new
 }
 
-$checkverBlock = {
-    $checkver = $args
+$checkverFormatBlock = {
+    $checkver = $Manifest.checkver
     if ($checkver -and ($checkver.GetType() -ne [System.String])) {
         # Remove not needed url
         if ($checkver.url -and ($checkver.url -eq $Manifest.homepage)) {
@@ -84,7 +108,7 @@ $checkverBlock = {
         }
 
         # Only one github property and homepage is set to github repository
-        if (($checkver.PSObject.Properties.Name.Count -eq 1) -and $checkver.github -and ($checkver.github -eq $manifest.homepage)) {
+        if (($checkver.PSObject.Properties.Name.Count -eq 1) -and $checkver.github -and ($checkver.github -eq $Manifest.homepage)) {
             _infoMes $name 'alone checkver.github -> checkver github string'
 
             $checkver = 'github'
@@ -94,36 +118,6 @@ $checkverBlock = {
     return $checkver
 }
 #endregion Formatters
-
-function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAutoupdate, [Switch] $SkipArchitecture) {
-    $prop = $Manifest.$Property
-    # Generic property
-    if ($prop) {
-        $Manifest.$Property = $ScriptBlock.Invoke($prop)
-    }
-
-    # Architecture specific
-    $archSpec = $Manifest.architecture
-    if (!$SkipArchitecture -and $archSpec) {
-        # TODO: Multiple architectures
-        '64bit', '32bit' | ForEach-Object {
-            if ($archSpec.$_ -and $archSpec.$_.$Property) {
-                $archSpec.$_.$Property = $ScriptBlock.Invoke($archSpec.$_.$Property)
-            }
-        }
-    }
-
-    # Autoupdate
-    if (!$SkipAutoupdate -and $Manifest.autoupdate) {
-        $Manifest.autoupdate = _adjustProperty -Manifest $Manifest.autoupdate -Property $Property -ScriptBlock $ScriptBlock
-    }
-
-    return $Manifest
-}
-
-$Dir = Resolve-Path $Dir
-$exitCode = 0
-$problems = 0
 
 foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     $name = $gci.Basename
@@ -141,11 +135,20 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     }
 
     #region Migrations and fixes
-    #region Checkver
-    $manifest = _adjustProperty -Manifest $Manifest -Property 'checkver' -ScriptBlock $checkverBlock -SkipAutoupdate -SkipArchitecture
-    #endregion Checkver
+    # Migrate _comment into ##
+    if ($manifest.'_comment') {
+        $manifest | Add-Member -MemberType 'NoteProperty' -Name '##' -Value $manifest.'_comment'
+        $manifest.PSObject.Properties.Remove('_comment')
+    }
+
+    $manifest = _adjustProperty -Manifest $manifest -Property 'checkver' -ScriptBlock $checkverFormatBlock -SkipAutoupdate
+
+    # Backslash format
+    $manifest = _adjustProperty -Manifest $manifest -Property 'env_add_path' -ScriptBlock $persistBlock
+    $manifest = _adjustProperty -Manifest $manifest -Property 'persist' -ScriptBlock $persistBlock
 
     #region Architecture properties sort
+    # TODO: Extract
     foreach ($mainProp in 'architecture', 'autoupdate') {
         if ($mainProp -eq 'autoupdate') {
             if ($manifest.$mainProp.architecture) {
@@ -184,15 +187,19 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     }
     #endregion Architecture properties sort
 
-    #region Backslash replaces
-    $manifest = _adjustProperty -Manifest $manifest -Property 'env_add_path' -ScriptBlock $persistBlock
-    $manifest = _adjustProperty -Manifest $manifest -Property 'persist' -ScriptBlock $persistBlock
-    #endregion Backslash replaces
-
     $newManifest = [PSCustomObject] @{ }
-    '##', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'depends' | ForEach-Object {
-        if ($manifest.$_) {
-            $newManifest | Add-Member -MemberType 'NoteProperty' -Name $_ -Value $manifest.$_
+    # Add informational properties in special order ranked by usability into new object and remove from old object
+    # Comment for maintainers has to be at first
+    # Version is mandatory manifest identificator
+    # Description is mandator and essential information for user
+    # Homepage provides additional information in case description is not enough
+    # License has to follow immediatelly after homepge. User most likely decided to install app after reading description or visiting homepage
+    # Notes contains usefull information for user. When they cat the manifest it has to be visible on top
+    # Changelog is additional not required information
+    '##', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'suggest', 'depends' | ForEach-Object {
+        $val = $manifest.$_
+        if ($val) {
+            $newManifest | Add-Member -MemberType 'NoteProperty' -Name $_ -Value $val
             $manifest.PSObject.Properties.Remove($_)
         }
     }

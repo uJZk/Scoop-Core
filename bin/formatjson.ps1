@@ -24,8 +24,12 @@ param(
     [String] $Dir
 )
 
-'core', 'Helpers', 'manifest', 'json' | ForEach-Object {
+'Helpers' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
+Write-UserMessage -Message 'Binary ''formatjson'' is deprecated and will be removed in near future. Use ''format'' instead' -Warning
+
 & (Join-Path $PSScriptRoot 'format.ps1') -App $App -Dir $Dir
+
+exit $LASTEXITCODE
