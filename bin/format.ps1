@@ -28,6 +28,10 @@ param(
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
+$Dir = Resolve-Path $Dir
+$exitCode = 0
+$problems = 0
+
 function _infoMes ($name, $mes) { Write-UserMessage -Message "${name}: $mes" -Info }
 
 function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAutoupdate, [Switch] $SkipArchitecture) {
