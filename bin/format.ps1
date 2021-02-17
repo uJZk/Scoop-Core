@@ -62,9 +62,18 @@ function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAuto
 }
 
 #region Formatters
-$backslashFormatBlock = {
+$binPersistBackslashFormatBlock = {
     $new = @()
-    $args | ForEach-Object { $new += $_ -replace '/', '\' }
+    foreach ($_a in $args) {
+        if ($_a.Count -eq 1) {
+            # String
+            $new += $_a -replace '/', '\'
+        } elseif ($_a.Count -gt 1) {
+            # Array with 2 or more items
+            $_a[0] = $_a[0] -replace '/', '\'
+            $new += , $_a
+        }
+    }
 
     return $new
 }
@@ -151,8 +160,8 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     $manifest = _adjustProperty -Manifest $manifest -Property 'checkver' -ScriptBlock $checkverFormatBlock -SkipAutoupdate
 
     # Backslash format
-    $manifest = _adjustProperty -Manifest $manifest -Property 'env_add_path' -ScriptBlock $backslashFormatBlock
-    $manifest = _adjustProperty -Manifest $manifest -Property 'persist' -ScriptBlock $backslashFormatBlock
+    $manifest = _adjustProperty -Manifest $manifest -Property 'bin' -ScriptBlock $binPersistBackslashFormatBlock
+    $manifest = _adjustProperty -Manifest $manifest -Property 'persist' -ScriptBlock $binPersistBackslashFormatBlock
 
     #region Architecture properties sort
     # TODO: Extract
