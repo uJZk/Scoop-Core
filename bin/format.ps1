@@ -37,7 +37,9 @@ function _infoMes ($name, $mes) { Write-UserMessage -Message "${name}: $mes" -In
 function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAutoupdate, [Switch] $SkipArchitecture) {
     $prop = $Manifest.$Property
     if ($prop) {
-        $Manifest.$Property = $ScriptBlock.Invoke($prop)[0]
+        $result = $ScriptBlock.Invoke($prop)
+        $result = if ($result.Count -eq 1) { $result[0] } else { $result }
+        $Manifest.$Property = $result
     }
 
     # Architecture specific
@@ -45,10 +47,11 @@ function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAuto
     if (!$SkipArchitecture -and $archSpec) {
         (Get-NotePropertyEnumerator -Object $archSpec).Name | ForEach-Object {
             if ($archSpec.$_ -and $archSpec.$_.$Property) {
-                $Manifest.architecture.$_.$Property = $ScriptBlock.Invoke($archSpec.$_.$Property)
+                $result = $ScriptBlock.Invoke($archSpec.$_.$Property)
+                $result = if ($result.Count -eq 1) { $result[0] } else { $result }
+                $Manifest.architecture.$_.$Property = $result
             }
         }
-
     }
 
     if (!$SkipAutoupdate -and $Manifest.autoupdate) {
