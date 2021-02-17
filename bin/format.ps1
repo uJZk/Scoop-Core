@@ -38,7 +38,7 @@ function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAuto
     $prop = $Manifest.$Property
     if ($prop) {
         $result = $ScriptBlock.Invoke($prop)
-        $result = if ($result.Count -eq 1) { $result[0] } else { $result }
+        $result = if (($prop.Count -gt 1) -or ($result.Count -gt 1)) { $result } else { $result[0] }
         $Manifest.$Property = $result
     }
 
@@ -48,7 +48,7 @@ function _adjustProperty ($Manifest, $Property, $ScriptBlock, [Switch] $SkipAuto
         (Get-NotePropertyEnumerator -Object $archSpec).Name | ForEach-Object {
             if ($archSpec.$_ -and $archSpec.$_.$Property) {
                 $result = $ScriptBlock.Invoke($archSpec.$_.$Property)
-                $result = if ($result.Count -eq 1) { $result[0] } else { $result }
+                $result = if (($archSpec.$_.$Property.Count -gt 1) -or ($result.Count -eq 1)) { $result } else { $result[0] }
                 $Manifest.architecture.$_.$Property = $result
             }
         }
