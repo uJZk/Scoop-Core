@@ -2,6 +2,10 @@
 
 ## [0.6](https://github.com/Ash258/Scoop-Core/milestone/4)
 
+### 0.6-pre3
+
+- **format**: Always convert forward slashes into backslashes in persist property
+
 ### 0.6-pre2
 
 - **scoop-search**: Fix search without parameter provided
@@ -10,9 +14,7 @@
 - **git**: Fix proxy handling
 - **psmodules**: Add global modules to path only if global manifest is installed
 - **decompress**: Support `INNOSETUP_USE_INNOEXTRACT` config option and `Expand-InnoArchive -UseInnoextract`
-- **format**
-    - Always convert forward slashes into backslashes in persist property
-    - Extract checkver fixes into own function and add generic adjust property function
+- **format**: Extract checkver fixes into own function and add generic adjust property function
 - **schema**
     - Add `disable` property to `checkver` and `autoupdate`
         - `-Force` will ignore this property
