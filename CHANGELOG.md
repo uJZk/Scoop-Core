@@ -5,6 +5,7 @@
 ### 0.6-pre3
 
 - **format**: Always convert forward slashes into backslashes in persist property
+- **checkver**: Properly reflect execution issues with exit code
 
 ### 0.6-pre2
 
