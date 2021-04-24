@@ -5,6 +5,7 @@ if (!((Get-Command 'scoop' -ErrorAction 'SilentlyContinue') -or (Get-Command 'sh
 
 $script:SCOOP_DIRECTORY = $env:SCOOP, "$env:USERPROFILE\scoop" | Where-Object { ![String]::IsNullOrEmpty($_) } | Select-Object -First 1
 $script:SCOOP_GLOBAL_DIRECTORY = $env:SCOOP_GLOBAL, "$env:ProgramData\scoop" | Where-Object { ![String]::IsNullOrEmpty($_) } | Select-Object -First 1
+$script:SCOOP_CACHE_DIRECTORY = $env:SCOOP_CACHE, "$SCOOP_DIRECTORY\cache" | Where-Object { ![String]::IsNullOrEmpty($_) } | Select-Object -First 1
 $script:SCOOP_COMMANDS = @(
     'alias'
     'bucket'
@@ -38,7 +39,7 @@ $script:SCOOP_SUB_COMMANDS = @{
     'bucket' = 'add known list rm'
     'cache'  = 'rm show'
     'config' = 'rm show'
-    'utils'  = 'auto-pr checkhashes checkurl checkver describe format missing-checkver'
+    'utils'  = 'auto-pr checkhashes checkurls checkver describe format missing-checkver'
 }
 $script:SCOOP_SHORT_PARAMETERS = @{
     'cleanup'    = 'g k'
@@ -170,9 +171,11 @@ function script:Get-LocallyAvailableApplicationsByScoop($Filter) {
 }
 
 function script:Get-ScoopCachedFile($Filter) {
-    $files = Get-ChildItem $SCOOP_DIRECTORY 'cache\*' -File -Name
+    if (!(Test-Path -LiteralPath $SCOOP_CACHE_DIRECTORY)) { return @() }
 
+    $files = Get-ChildItem -Path "$SCOOP_CACHE_DIRECTORY\*#*" -File -Name
     $res = @()
+
     foreach ($f in $files) { $res += ($f -split '#')[0] }
 
     return @($res | Select-Object -Unique) -like "$Filter*"
