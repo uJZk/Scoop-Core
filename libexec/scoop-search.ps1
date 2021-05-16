@@ -9,6 +9,9 @@
 #   -r, --remote    Force remote search in known buckets using Github API.
 #                       Remote search does not utilize advanced search methods (descriptions, binary, shortcuts, ... matching).
 #                       It only uses manifest name to search.
+#   -a, --api       Use shovel.ash258.com API backend for search.
+#                       Regular expression is not supported.
+#                       Currently in experimental phase with limited feature-set. Search is done on manifest names only.
 
 'getopt', 'buckets', 'Helpers', 'Search' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
@@ -16,9 +19,10 @@
 
 Reset-Alias
 
-$opt, $Query, $err = getopt $args 'r' 'remote'
+$opt, $Query, $err = getopt $args 'ra' 'remote', 'api'
 if ($err) { Stop-ScoopExecution -Message "scoop search: $err" -ExitCode 2 }
 $Remote = $opt.r -or $opt.remote
+$Api = $opt.a -or $opt.api
 if ($Query) {
     try {
         $Query = New-Object System.Text.RegularExpressions.Regex $Query, 'IgnoreCase'
@@ -68,7 +72,7 @@ foreach ($bucket in (Get-LocalBucket)) {
 }
 
 if (!$localResults) { Write-UserMessage -Message 'No matches in local buckets found' }
-if (!$localResults -or $Remote) {
+if (!$Api -and (!$localResults -or $Remote)) {
     if (!(Test-GithubApiRateLimitBreached)) {
         Write-Host 'Searching in remote buckets ...'
         $remoteResults = Search-AllRemote -Query $Query
@@ -84,6 +88,16 @@ if (!$localResults -or $Remote) {
         }
     } else {
         Stop-ScoopExecution 'GitHub ratelimit reached: Cannot query known repositories, please try again later'
+    }
+}
+
+if ($Api) {
+    $results = Search-RemoteAPI -Query $Query
+
+    # TODO: Bucket url
+    # TODO: Prompt for bucket addition
+    $results | ForEach-Object {
+        Write-Host "$($_.name) ($($_.version)) - URL - remote URL" -f red
     }
 }
 
