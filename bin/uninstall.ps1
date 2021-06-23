@@ -67,7 +67,8 @@ foreach ($il in installed_apps $false) {
 
 if ($errors -gt 0) { Stop-ScoopExecution -Message 'Not all apps could be deleted. Try again or restart.' }
 
-Remove-Module 'powershell-yaml'
+Write-UserMessage -Message 'All applications uninstalled' -Success
+Remove-Module 'powershell-yaml' -Force -Confirm:$false
 
 if ($purge) {
     rm_dir $SCOOP_ROOT_DIRECTORY
