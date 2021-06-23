@@ -88,11 +88,10 @@ function Uninstall-ScoopApplication {
             }
         }
 
-        # TODO: foreach
-        Get-InstalledVersion -AppName $App -Global:$Global | ForEach-Object {
-            Write-UserMessage -Message "Removing older version ($_)." -Output:$false
+        foreach ($old in Get-InstalledVersion -AppName $App -Global:$Global) {
+            Write-UserMessage -Message "Removing older version ($old)." -Output:$false
 
-            $dir = versiondir $app $_ $Global
+            $dir = versiondir $app $old $Global
             try {
                 # Unlink all potential old link before doing recursive Remove-Item
                 unlink_persist_data $dir

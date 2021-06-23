@@ -71,4 +71,7 @@ if ($version) {
     $ExitCode = 2
 }
 
+Get-Module
+Get-UserAgent | Write-Host -f red
+
 exit $ExitCode

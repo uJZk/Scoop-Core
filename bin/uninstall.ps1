@@ -46,18 +46,31 @@ function keep_onlypersist($directory) {
 # Run uninstallation for each app if necessary, continuing if there's
 # a problem deleting a directory (which is quite likely)
 if ($global) {
-    installed_apps $true | ForEach-Object { # global apps
-        $result = Uninstall-ScoopApplication -App $_ -Global
+    foreach ($ig in installed_apps $true) {
+        try {
+            $result = Uninstall-ScoopApplication -App $ig -Global -Older
+        } catch {
+            $result = $false
+        }
         if ($result -eq $false) { $errors += 1 }
     }
 }
+Write-Host $erorrs -f red
 
-installed_apps $false | ForEach-Object { # local apps
-    $result = Uninstall-ScoopApplication -App $_
+foreach ($il in installed_apps $false) {
+    try {
+        $result = Uninstall-ScoopApplication -App $il -Older
+    } catch {
+        $result = $false
+    }
     if ($result -eq $false) { $errors += 1 }
 }
+Write-Host $erorrs -f red
+exit 0
 
 if ($errors -gt 0) { Stop-ScoopExecution -Message 'Not all apps could be deleted. Try again or restart.' }
+
+Remove-Module 'powershell-yaml'
 
 if ($purge) {
     rm_dir $SCOOP_ROOT_DIRECTORY
