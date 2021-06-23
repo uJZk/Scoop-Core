@@ -55,7 +55,6 @@ if ($global) {
         if ($result -eq $false) { $errors += 1 }
     }
 }
-Write-Host $erorrs -f red
 
 foreach ($il in installed_apps $false) {
     try {
@@ -65,8 +64,6 @@ foreach ($il in installed_apps $false) {
     }
     if ($result -eq $false) { $errors += 1 }
 }
-Write-Host $erorrs -f red
-exit 0
 
 if ($errors -gt 0) { Stop-ScoopExecution -Message 'Not all apps could be deleted. Try again or restart.' }
 
