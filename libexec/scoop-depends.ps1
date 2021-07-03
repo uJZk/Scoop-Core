@@ -1,23 +1,29 @@
-# Usage: scoop depends <app> [options]
-# Summary: List dependencies for an app
+# Usage: scoop depends [<OPTIONS>] <APP>
+# Summary: List dependencies for an application.
 #
 # Options:
-#   -h, --help      Show help for this command.
+#   -h, --help                  Show help for this command.
+#   -a, --arch <32bit|64bit>    Use the specified architecture, if the application's manifest supports it.
 
-'depends', 'install', 'manifest', 'buckets', 'getopt', 'decompress', 'help' | ForEach-Object {
+'core', 'depends', 'getopt', 'help', 'Helpers' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 Reset-Alias
 
-$opt, $apps, $err = getopt $args 'a:' 'arch='
-$app = $apps[0]
-$architecture = default_architecture
+$ExitCode = 0
+$Options, $Applications, $_err = getopt $args 'a:' 'arch='
 
-if ($err) { Stop-ScoopExecution -Message "scoop depends: $err" -ExitCode 2 }
-if (!$app) { Stop-ScoopExecution -Message 'Parameter <app> missing' -Usage (my_usage) }
+if ($_err) { Stop-ScoopExecution -Message "scoop depends: $_err" -ExitCode 2 }
 
-$deps = @(deps $app $architecture)
-if ($deps) { $deps[($deps.length - 1)..0] }
+# TODO: Multiple apps?
+$Application = $Applications[0]
+$Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
 
-exit 0
+if (!$Application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
+
+# TODO: Installed dependencies are not listed. Should they be shown??
+$deps = @(deps $Application $Architecture)
+if ($deps) { $deps[($deps.Length - 1)..0] | Write-UserMessage -Output }
+
+exit $ExitCode

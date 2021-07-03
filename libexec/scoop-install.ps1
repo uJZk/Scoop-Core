@@ -1,29 +1,32 @@
-# Usage: scoop install <apps> [options]
-# Summary: Install apps
-# Help: e.g. The usual way to install an app (uses your local 'buckets'):
+# Usage: scoop install [<OPTIONS>] <APP>...
+# Summary: Install specific application(s).
+# Help: The usual way to install an application (uses your local 'buckets'):
 #   scoop install git
 #   scoop install extras/googlechrome
 #
-# To install an app from a manifest at a URL:
+# To install an application from a manifest at a URL:
 #   scoop install https://raw.githubusercontent.com/ScoopInstaller/Main/master/bucket/runat.json
 #
-# To install an app from a manifest on your computer
-#   scoop install \path\to\app.json
+# To install an application from a manifest on your computer:
+#   scoop install D:\path\to\app.json
+#   scoop install ./install/pwsh.json
 #
 # Options:
 #   -h, --help                Show help for this command.
-#   -g, --global              Install the app globally.
-#   -i, --independent         Don't install dependencies automatically.
-#   -k, --no-cache            Don't use the download cache.
+#   -a, --arch <32bit|64bit>  Use the specified architecture, if the application's manifest supports it.
+#   -g, --global              Install the application(s) globally.
+#   -i, --independent         Do not install dependencies automatically.
+#   -k, --no-cache            Do not use the download cache.
 #   -s, --skip                Skip hash validation (use with caution!).
-#   -a, --arch <32bit|64bit>  Use the specified architecture, if the app supports it.
 
-'Helpers', 'core', 'manifest', 'buckets', 'decompress', 'install', 'shortcuts', 'psmodules', 'Update', 'Versions', 'help', 'getopt', 'depends' | ForEach-Object {
+'core', 'buckets', 'decompress', 'depends', 'getopt', 'help', 'Helpers', 'manifest', 'shortcuts', 'psmodules', 'Update', 'Versions', 'install' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 Reset-Alias
 
+# TODO: Export
+# TODO: Cleanup
 function is_installed($app, $global, $version) {
     if ($app.EndsWith('.json')) {
         $app = [System.IO.Path]::GetFileNameWithoutExtension($app)
@@ -66,15 +69,10 @@ $global = $opt.g -or $opt.global
 $check_hash = !($opt.s -or $opt.skip)
 $independent = $opt.i -or $opt.independent
 $use_cache = !($opt.k -or $opt.'no-cache')
-$architecture = default_architecture
+$architecture = Resolve-ArchitectureParameter -Architecture $opt.a, $opt.arch
 
-try {
-    $architecture = ensure_architecture ($opt.a + $opt.arch)
-} catch {
-    Stop-ScoopExecution -Message "$_" -ExitCode 2
-}
-if (!$apps) { Stop-ScoopExecution -Message 'Parameter <apps> missing' -Usage (my_usage) }
-if ($global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed apps' -ExitCode 4 }
+if (!$apps) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
+if ($global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
 if (is_scoop_outdated) { Update-Scoop }
 
@@ -144,6 +142,7 @@ $skip | Where-Object { $explicit_apps -contains $_ } | ForEach-Object {
 
 $suggested = @{ }
 $failedDependencies = @()
+$failedApplications = @()
 
 foreach ($app in $apps) {
     $bucket = $cleanApp = $null
@@ -177,7 +176,7 @@ foreach ($app in $apps) {
         ++$problems
 
         # Register failed dependencies
-        if ($explicit_apps -notcontains $app) { $failedDependencies += $app }
+        if ($explicit_apps -notcontains $app) { $failedDependencies += $app } else { $failedApplications += $app }
 
         $title, $body = $_.Exception.Message -split '\|-'
         if (!$body) { $body = $title }
@@ -190,6 +189,9 @@ foreach ($app in $apps) {
 }
 
 show_suggestions $suggested
+
+if ($failedApplications) { Write-UserMessage -Message "These applications failed to install: $($failedApplications -join ', ')" -Err }
+if ($failedDependencies) { Write-UserMessage -Message "These dependencies failed to install: $($failedDependencies -join ', ')" -Err }
 
 if ($problems -gt 0) { $exitCode = 10 + $problems }
 

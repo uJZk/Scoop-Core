@@ -1,50 +1,49 @@
-# Usage: scoop cat <apps> [options]
-# Summary: Show content of specified manifest.
+# Usage: scoop cat [<OPTIONS>] <APP>...
+# Summary: Show content of specified manifest(s).
 #
 # Options:
-#   -h, --help      Show help for this command.
+#   -h, --help                  Show help for this command.
+#   -f, --format <json|yaml>    Show manifest in specific format. Json will be considered as default when this parameter is not provided.
 
-param([Parameter(ValueFromRemainingArguments)] [String[]] $Application)
-
-'help', 'Helpers', 'install', 'manifest' | ForEach-Object {
+'core', 'getopt', 'help', 'Helpers', 'install', 'manifest' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-if (!$Application) { Stop-ScoopExecution -Message 'Parameter <apps> missing' -Usage (my_usage) }
+$ExitCode = 0
+$Problems = 0
+$Options, $Applications, $_err = getopt $args 'f:' 'format='
 
-$exitCode = 0
-$problems = 0
-foreach ($app in $Application) {
-    # Prevent leaking variables from previous iteration
-    $cleanAppName = $bucket = $version = $appName = $manifest = $foundBucket = $url = $null
+if ($_err) { Stop-ScoopExecution -Message "scoop cat: $_err" -ExitCode 2 }
+if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 
-    $cleanAppName, $bucket, $version = parse_app $app
-    $appName, $manifest, $foundBucket, $url = Find-Manifest $cleanAppName $bucket
-    if ($null -eq $bucket) { $bucket = $foundBucket }
+$Format = $Options.f, $Options.format, 'json' | Where-Object { ! [String]::IsNullOrEmpty($_) } | Select-Object -First 1
+if ($Format -notin $ALLOWED_MANIFEST_EXTENSION) { Stop-ScoopExecution -Message "Format '$Format' is not supported" -ExitCode 2 }
 
-    # Handle potential use case, which should not appear, but just in case
-    # If parsed name/bucket is not same as the provided one
-    if ((!$url) -and (($cleanAppName -ne $appName) -or ($bucket -ne $foundBucket))) {
-        debug $bucket
-        debug $cleanAppName
-        debug $foundBucket
-        debug $appName
-        Write-UserMessage -Message 'Found application name or bucket is not same as requested' -Err
-        ++$problems
+foreach ($app in $Applications) {
+    $resolved = $null
+    try {
+        $resolved = Resolve-ManifestInformation -ApplicationQuery $app
+    } catch {
+        ++$Problems
+
+        $title, $body = $_.Exception.Message -split '\|-'
+        if (!$body) { $body = $title }
+        Write-UserMessage -Message $body -Err
+        debug $_.InvocationInfo
+
         continue
     }
 
-    if ($manifest) {
-        Write-UserMessage -Message "Showing manifest for $app" -Color 'Green'
+    debug $resolved
 
-        $manifest | ConvertToPrettyJson | Write-UserMessage -Output
-    } else {
-        Write-UserMessage -Message "Manifest for $app not found" -Err
-        ++$problems
-        continue
+    $output = $resolved.ManifestObject | ConvertTo-Manifest -Extension $Format
+
+    if ($output) {
+        Write-UserMessage -Message "Showing manifest for '$app'" -Success # TODO: Add better text with parsed appname, version, url/bucket
+        Write-UserMessage -Message $output -Output
     }
 }
 
-if ($problems -gt 0) { $exitCode = 10 + $problems }
+if ($Problems -gt 0) { $ExitCode = 10 + $Problems }
 
-exit $exitCode
+exit $ExitCode

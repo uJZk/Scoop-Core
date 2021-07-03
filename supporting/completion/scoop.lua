@@ -12,8 +12,9 @@ end
 
 -- region Helpers
 local booleanParser = parser({'true', 'false'})
-local architectureParser = parser({'32bit', '64bit'})
+local architectureParser = parser({'32bit', '64bit', 'arm64'})
 local utilityParser = parser({'native', 'aria2'})
+local manifestFormatParser = parser({'json', 'yml', 'yaml'})
 local configOptions = parser({
     '7ZIPEXTRACT_USE_EXTERNAL' .. booleanParser,
     'aria2-enabled' .. booleanParser,
@@ -152,6 +153,7 @@ local scoopParser = parser({
         '-h', '--help'
     }),
     'cat' .. parser({getLocallyAvailableApplicationsByScoop},
+        '-f' .. manifestFormatParser, '--format' .. manifestFormatParser,
         '-h', '--help'
     ),
     'cache' .. parser({'show', 'rm'} .. parser({getScoopCachedFile}),
@@ -169,6 +171,7 @@ local scoopParser = parser({
         '-h', '--help'
     }),
     'depends' .. parser({getLocallyAvailableApplicationsByScoop},
+        '-a' .. architectureParser, '--arch' .. architectureParser,
         '-h', '--help'
     ),
     'download' .. parser({getLocallyAvailableApplicationsByScoop},
@@ -187,6 +190,7 @@ local scoopParser = parser({
         '-h', '--help'
     ),
     'info' .. parser({getLocallyAvailableApplicationsByScoop},
+        '-a' .. architectureParser, '--arch' .. architectureParser,
         '-h', '--help'
     ),
     'install' .. parser({getLocallyAvailableApplicationsByScoop},

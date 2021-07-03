@@ -1,54 +1,49 @@
-# Usage: scoop uninstall <app> [options]
-# Summary: Uninstall an app
-# Help: e.g. scoop uninstall git
+# Usage: scoop uninstall [<OPTIONS>] <APP>...
+# Summary: Uninstall specified application(s).
 #
 # Options:
 #   -h, --help     Show help for this command.
-#   -g, --global   Uninstall a globally installed app.
-#   -p, --purge    Remove all persistent data.
+#   -g, --global   Uninstall a globally installed application(s).
+#   -p, --purge    Persisted data will be removed.
+#                  Normally when application is being uninstalled, the data defined in persist property/manually persisted are kept.
 
-'core', 'manifest', 'help', 'Helpers', 'install', 'shortcuts', 'psmodules', 'Versions', 'getopt', 'Uninstall' | ForEach-Object {
+'core', 'getopt', 'help', 'Helpers', 'install', 'manifest', 'psmodules', 'shortcuts', 'Uninstall', 'Versions' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 Reset-Alias
 
-$opt, $apps, $err = getopt $args 'gp' 'global', 'purge'
+$ExitCode = 0
+$Problems = 0
+$Options, $Applications, $_err = getopt $args 'gp' 'global', 'purge'
 
-if ($err) { Stop-ScoopExecution -Message "scoop uninstall: $err" -ExitCode 2 }
+if ($_err) { Stop-ScoopExecution -Message "scoop uninstall: $_err" -ExitCode 2 }
 
-$global = $opt.g -or $opt.global
-$purge = $opt.p -or $opt.purge
+$Global = $Options.g -or $Options.global
+$Purge = $Options.p -or $Options.purge
 
-if (!$apps) { Stop-ScoopExecution -Message 'Parameter <app> missing' -Usage (my_usage) }
+if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
+if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Administrator privileges are required to uninstall globally installed applications.' -ExitCode 4 }
 
-if ($global -and !(is_admin)) {
-    Stop-ScoopExecution -Message 'Administrator privileges are required to uninstall global apps.' -ExitCode 4
-}
-
-if ($apps -eq 'scoop') {
-    & (Join-Path $PSScriptRoot '..\bin\uninstall.ps1') $global $purge
+if ($Applications -eq 'scoop') {
+    & (Join-Path $PSScriptRoot '..\bin\uninstall.ps1') $Global $Purge
     exit $LASTEXITCODE
 }
 
-$apps = Confirm-InstallationStatus $apps -Global:$global
-if (!$apps) {
-    # This is not strict error
-    # Keeping it with zero exit code will allow chaining of commands in such use case (mainly vscode tasks dependencies)
-    Stop-ScoopExecution -Message 'No application to uninstall' -ExitCode 0 -SkipSeverity
-}
+$Applications = Confirm-InstallationStatus $Applications -Global:$Global
 
-$exitCode = 0
-$problems = 0
-# TODO: remove label
-:app_loop foreach ($_ in $apps) {
-    ($app, $global, $bucket) = $_
+# This is not strict error
+# Keeping it with zero exit code will allow chaining of commands in such use case (mainly vscode tasks dependencies)
+if (!$Applications) { Stop-ScoopExecution -Message 'No application to uninstall' -ExitCode 0 -SkipSeverity }
 
+foreach ($explode in $Applications) {
+    ($app, $gl, $bucket) = $explode
     $result = $false
+
     try {
-        $result = Uninstall-ScoopApplication -App $app -Global:$global -Purge:$purge -Older
+        $result = Uninstall-ScoopApplication -App $app -Global:$gl -Purge:$Purge -Older
     } catch {
-        ++$problems
+        ++$Problems
 
         $title, $body = $_.Exception.Message -split '\|-'
         if (!$body) { $body = $title }
@@ -60,13 +55,13 @@ $problems = 0
     }
 
     if ($result -eq $false) {
-        ++$problems
+        ++$Problems
         continue
     }
 
-    Write-UserMessage -Message "'$app' was uninstalled." -Success
+    Write-UserMessage -Message "'$app' was uninstalled" -Success
 }
 
-if ($problems -gt 0) { $exitCode = 10 + $problems }
+if ($Problems -gt 0) { $ExitCode = 10 + $Problems }
 
-exit $exitCode
+exit $ExitCode
