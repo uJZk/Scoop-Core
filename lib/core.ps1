@@ -793,6 +793,7 @@ function ensure_architecture($architecture_opt) {
     switch ($architecture_opt) {
         { @('64bit', '64', 'x64', 'amd64', 'x86_64', 'x86-64') -contains $_ } { return '64bit' }
         { @('32bit', '32', 'x86', 'i386', '386', 'i686') -contains $_ } { return '32bit' }
+        { @('arm64', 'aarch64', 'armv8') -contains $_ } { return 'arm64' }
         default { throw [System.ArgumentException] "Invalid architecture: '$architecture_opt'" }
     }
 }
@@ -927,97 +928,6 @@ function show_app($app, $bucket, $version) {
     return $app
 }
 
-function last_scoop_update() {
-    # TODO: Config refactor
-    $lastUpdate = Invoke-ScoopCommand 'config' @('lastupdate')
-
-    if ($null -ne $lastUpdate) {
-        try {
-            $lastUpdate = Get-Date ($lastUpdate.Substring(4))
-        } catch {
-            Write-UserMessage -Message 'Config: Incorrect update date format' -Info
-            $lastUpdate = $null
-        }
-    }
-
-    return $lastUpdate
-}
-
-function is_scoop_outdated() {
-    $lastUp = last_scoop_update
-    $now = Get-Date
-    $res = $true
-
-    if ($null -eq $lastUp) {
-        # TODO: Config refactor
-        Invoke-ScoopCommand 'config' @('lastupdate', ($now.ToString($UPDATE_DATE_FORMAT))) | Out-Null
-    } else {
-        $res = $lastUp.AddHours(3) -lt $now.ToLocalTime()
-    }
-
-    return $res
-}
-
-function Invoke-VariableSubstitution {
-    <#
-    .SYNOPSIS
-        Substitute (find and replace) provided parameters in provided entity.
-    .PARAMETER Entity
-        Specifies the entity to be substituted (searched in).
-    .PARAMETER Substitutes
-        Specifies the hashtable providing name and value pairs for "find and replace".
-        Hashtable keys should start with $ (dollar sign). Curly bracket variable syntax will be substituted automatically.
-    .PARAMETER EscapeRegularExpression
-        Specifies to escape regular expressions before replacing values.
-    #>
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()]
-        [AllowNull()]
-        $Entity,
-        [Parameter(Mandatory)]
-        [Alias('Parameters')]
-        [HashTable] $Substitutes,
-        [Switch] $EscapeRegularExpression
-    )
-
-    process {
-        $EscapeRegularExpression | Out-Null # PowerShell/PSScriptAnalyzer#1472
-        $newEntity = $Entity
-
-        if ($null -ne $newEntity) {
-            switch ($newEntity.GetType().Name) {
-                'String' {
-                    $Substitutes.GetEnumerator() | Sort-Object { $_.Name.Length } -Descending | ForEach-Object {
-                        $value = if (($EscapeRegularExpression -eq $false) -or ($null -eq $_.Value)) { $_.Value } else { [Regex]::Escape($_.Value) }
-                        $curly = '${' + $_.Name.TrimStart('$') + '}'
-
-                        $newEntity = $newEntity.Replace($curly, $value)
-                        $newEntity = $newEntity.Replace($_.Name, $value)
-                    }
-                }
-                'Object[]' {
-                    $newEntity = $newEntity | ForEach-Object { Invoke-VariableSubstitution -Entity $_ -Substitutes $Substitutes -EscapeRegularExpression:$regexEscape }
-                }
-                'PSCustomObject' {
-                    $newentity.PSObject.Properties | ForEach-Object { $_.Value = Invoke-VariableSubstitution -Entity $_ -Substitutes $Substitutes -EscapeRegularExpression:$regexEscape }
-                }
-                default {
-                    # This is not needed, but to cover all possible use cases explicitly
-                    $newEntity = $newEntity
-                }
-            }
-        }
-
-        return $newEntity
-    }
-}
-
-# TODO: Deprecate
-function substitute($entity, [Hashtable] $params, [Bool]$regexEscape = $false) {
-    return Invoke-VariableSubstitution -Entity $entity -Substitutes $params -EscapeRegularExpression:$regexEscape
-}
-
 function format_hash([String] $hash) {
     # Convert base64 encoded hash values
     if ($hash -match '^(?:[A-Za-z\d+\/]{4})*(?:[A-Za-z\d+\/]{2}==|[A-Za-z\d+\/]{3}=|[A-Za-z\d+\/]{4})$') {
@@ -1120,11 +1030,6 @@ function Resolve-ArchitectureParameter {
 }
 
 #region Deprecated
-function reset_aliases() {
-    Show-DeprecatedWarning $MyInvocation 'Reset-Alias'
-    Reset-Alias
-}
-
 function file_path($app, $file) {
     Show-DeprecatedWarning $MyInvocation 'Get-AppFilePath'
     return Get-AppFilePath -App $app -File $file
@@ -1155,6 +1060,9 @@ if ($c) {
     Write-UserMessage -Message 'Configuration option ''rootPath'' is deprecated. Configure ''SCOOP'' environment variable instead' -Err
     if (!$env:SCOOP) { $env:SCOOP = $c }
 }
+
+# All supported architectures
+$SHOVEL_SUPPORTED_ARCHITECTURES = @('64bit', '32bit', 'arm64')
 
 # Path gluing has to remain in these global variables to not fail in case user do not have some environment configured (most likely linux case)
 # Scoop root directory

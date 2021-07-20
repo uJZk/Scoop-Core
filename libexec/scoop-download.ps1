@@ -13,10 +13,8 @@
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-Reset-Alias
-
 #region Parameter validation
-$opt, $application, $err = getopt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
+$opt, $application, $err = Resolve-GetOpt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
 if ($err) { Stop-ScoopExecution -Message "scoop download: $err" -ExitCode 2 }
 
 $checkHash = -not ($opt.s -or $opt.skip)
@@ -28,7 +26,7 @@ if (($utility -eq 'aria2') -and (!(Test-HelperInstalled -Helper Aria2))) { Stop-
 $Architecture = Resolve-ArchitectureParameter -Architecture $opt.a, $opt.arch
 
 # Add all supported architectures
-if ($opt.b -or $opt.'all-architectures') { $Architecture = '32bit', '64bit' }
+if ($opt.b -or $opt.'all-architectures') { $Architecture = $SHOVEL_SUPPORTED_ARCHITECTURES }
 #endregion Parameter validation
 
 $exitCode = 0
@@ -40,6 +38,8 @@ foreach ($app in $application) {
         $resolved = Resolve-ManifestInformation -ApplicationQuery $app
     } catch {
         ++$problems
+        debug $_.InvocationInfo
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
 
         $title, $body = $_.Exception.Message -split '\|-'
         if (!$body) { $body = $title }
@@ -77,11 +77,8 @@ foreach ($app in $application) {
                         ++$problems
                     }
 
-                    $title, $body = $_.Exception.Message -split '\|-'
-                    if (!$body) { $body = $title }
-                    Write-UserMessage -Message $body -Err
                     debug $_.InvocationInfo
-                    if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                    New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                     continue
                 }
@@ -115,11 +112,8 @@ foreach ($app in $application) {
                             ++$problems
                         }
 
-                        $title, $body = $_.Exception.Message -split '\|-'
-                        if (!$body) { $body = $title }
-                        Write-UserMessage -Message $body -Err
                         debug $_.InvocationInfo
-                        if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                         continue
                     }

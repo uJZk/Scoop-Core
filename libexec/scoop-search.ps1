@@ -16,11 +16,9 @@
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-Reset-Alias
-
 $ExitCode = 0
 $LocalResults = @()
-$Options, $Query, $_err = getopt $args 'ra' 'remote', 'api'
+$Options, $Query, $_err = Resolve-GetOpt $args 'ra' 'remote', 'api'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop search: $_err" -ExitCode 2 }
 
