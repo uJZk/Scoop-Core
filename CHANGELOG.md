@@ -3,6 +3,7 @@
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
 - **scoop-search**:
+    - Add `-a`, `--api` options
     - Do not fail when parsing invalid local manifest
     - Support `githubToken` config and `GITHUB_TOKEN` environment variable for Github API calls
 - **scoop-install**, **scoop-update**: Report failed installations/updates at the end of execution

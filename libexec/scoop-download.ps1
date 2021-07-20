@@ -41,11 +41,6 @@ foreach ($app in $application) {
         debug $_.InvocationInfo
         New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
 
-        $title, $body = $_.Exception.Message -split '\|-'
-        if (!$body) { $body = $title }
-        Write-UserMessage -Message $body -Err
-        debug $_.InvocationInfo
-
         continue
     }
 
