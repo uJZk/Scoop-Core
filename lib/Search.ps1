@@ -237,9 +237,11 @@ function Search-RemoteAPI {
             throw "Cannot get manifests from API: $($_.Exception.Message)"
         }
 
-        Write-Host $buckets -f green
-        Write-Host $res -f green
+        # Write-Host $buckets -f green
+        # Write-Host $res -f green
 
+        # TODO: test if bucket is added
+        # TODO: test if bucket is known
         # TODO: Process results
         # $apps += @{
         #     'name'              = $resolved.ApplicationName

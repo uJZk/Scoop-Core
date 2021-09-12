@@ -36,7 +36,7 @@ if ($Api) {
     # TODO: Bucket url
     # TODO: Prompt for bucket addition
     $results | ForEach-Object {
-        Write-Host "$($_.name) ($($_.version)) - URL - remote URL" -f red
+        Write-Host "$($_.name)@$($_.version) - $($_.url)" -f Magenta
     }
 }
 exit 0
@@ -109,10 +109,9 @@ if (!$Api -and (!$LocalResults -or $Remote)) {
 if ($Api) {
     $results = Search-RemoteAPI -Query $Query
 
-    # TODO: Bucket url
-    # TODO: Prompt for bucket addition
+    exit 258
     $results | ForEach-Object {
-        Write-Host "$($_.name) ($($_.version)) - URL - remote URL" -f red
+        Write-Host "$($_.name)@$($_.version) - $($_.url)" -f red
     }
 }
 

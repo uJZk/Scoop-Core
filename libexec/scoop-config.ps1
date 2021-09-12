@@ -76,7 +76,7 @@
 #   See: 'https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token'
 #
 # shovelSearchAPI:
-#   Provide alternative search API for shovel. Mainly for debugging.
+#   Provide alternative search API for Shovel. Mainly for debugging.
 #   Has to be full API URL. Including protocol, API version.
 #
 # ARIA2 configuration
