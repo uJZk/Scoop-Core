@@ -222,7 +222,34 @@ function Search-RemoteAPI {
     param([String] $Query)
 
     process {
-        $res = Invoke-RestMethod -Uri "https://api.shovel.ash258.com/api/v1/?query=$Query&size=10000&page=0"
+        $api = get_config 'shovelSearchAPI' 'https://api/shovel.ash258.com/api/v1'
+
+        $buckets = @()
+        $res = @{}
+        try {
+            $buckets = Invoke-RestMethod -Uri "$api/bucket?size=10000&page=0"
+        } catch {
+            throw "Cannot get buckets information from API: $($_.Exception.Message)"
+        }
+        try {
+            $res = Invoke-RestMethod -Uri "$api/manifest/search?query=$Query&size=10000&page=0"
+        } catch {
+            throw "Cannot get manifests from API: $($_.Exception.Message)"
+        }
+
+        Write-Host $buckets -f green
+        Write-Host $res -f green
+
+        # TODO: Process results
+        # $apps += @{
+        #     'name'              = $resolved.ApplicationName
+        #     'version'           = $manifest.version
+        #     'description'       = $manifest.description
+        #     'bin'               = @(arch_specific 'bin' $manifest $architecture)
+        #     'matchingBinaries'  = @()
+        #     'shortcuts'         = @(arch_specific 'shortcuts' $manifest $architecture)
+        #     'matchingShortcuts' = @()
+        # }
 
         return $res.content
     }

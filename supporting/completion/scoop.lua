@@ -34,6 +34,7 @@ local configOptions = parser({
     'virustotal_api_key',
     'proxy',
     'githubToken'
+    'shovelSearchAPI'
 })
 
 -- region Functions

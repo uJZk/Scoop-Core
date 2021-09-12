@@ -22,8 +22,24 @@ $Options, $Query, $_err = Resolve-GetOpt $args 'ra' 'remote', 'api'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop search: $_err" -ExitCode 2 }
 
+$Query = $Query[0]
 $Remote = $Options.r -or $Options.remote
 $Api = $Options.a -or $Options.api
+
+if ($Api) {
+    try {
+        $results = Search-RemoteAPI -Query $Query
+    } catch {
+        Stop-ScoopExecution -Message "scoop search: $_" -ExitCode 3
+    }
+
+    # TODO: Bucket url
+    # TODO: Prompt for bucket addition
+    $results | ForEach-Object {
+        Write-Host "$($_.name) ($($_.version)) - URL - remote URL" -f red
+    }
+}
+exit 0
 
 if ($Query) {
     try {
