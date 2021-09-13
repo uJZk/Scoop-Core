@@ -35,6 +35,10 @@ if ($Api) {
 
     # TODO: Bucket url
     # TODO: Prompt for bucket addition
+    if ($results.Count -eq 0) {
+        Write-Host "No results found for query '$Query'"
+    }
+
     $results | ForEach-Object {
         Write-Host "$($_.name)@$($_.version) - $($_.url)" -f Magenta
     }

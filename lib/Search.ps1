@@ -219,26 +219,33 @@ function Search-LocalBucket {
 
 function Search-RemoteAPI {
     [CmdletBinding()]
-    param([String] $Query)
+    param([String] $Query = '%')
 
     process {
-        $api = get_config 'shovelSearchAPI' 'https://api/shovel.ash258.com/api/v1'
+        if ([String]::IsNullOrEmpty($Query)) { $Query = '%' }
 
-        $buckets = @()
+        $api = get_config 'shovelSearchAPI' 'https://api/shovel.ash258.com/api/v1'
         $res = @{}
+        $buckets = @()
         try {
             $buckets = Invoke-RestMethod -Uri "$api/bucket?size=10000&page=0"
         } catch {
             throw "Cannot get buckets information from API: $($_.Exception.Message)"
         }
-        try {
-            $res = Invoke-RestMethod -Uri "$api/manifest/search?query=$Query&size=10000&page=0"
-        } catch {
-            throw "Cannot get manifests from API: $($_.Exception.Message)"
-        }
 
-        # Write-Host $buckets -f green
-        # Write-Host $res -f green
+        $final = @()
+        $page = $total = 0
+
+        do {
+            try {
+                $res = Invoke-RestMethod -Uri "$api/manifest/search?query=$Query&size=1000&page=$page"
+            } catch {
+                throw "Cannot get manifests from API: $($_.Exception.Message)"
+            }
+            $total = $res.total
+            ++$page
+            $final += $res.content
+        } while ($total -ne $final.Count)
 
         # TODO: test if bucket is added
         # TODO: test if bucket is known
@@ -253,6 +260,6 @@ function Search-RemoteAPI {
         #     'matchingShortcuts' = @()
         # }
 
-        return $res.content
+        return $final
     }
 }
