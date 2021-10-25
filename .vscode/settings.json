@@ -44,39 +44,64 @@
         "-NoLogo",
         "-NoExit",
     ],
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "icon": "terminal-powershell",
+            "path": "powershell.exe",
+            "args": [
+                "-NoLogo",
+                "-NoExit",
+            ],
+        },
+        "Command Prompt": {
+            "path": [
+                "${env:windir}\\Sysnative\\cmd.exe",
+                "${env:windir}\\System32\\cmd.exe",
+            ],
+            "args": [],
+            "icon": "terminal-cmd",
+        },
+        "Git Bash": {
+            "source": "Git Bash",
+            "path": [
+                "${env:SCOOP_GLOBAL}\\apps\\git\\current\\bin\\bash.exe",
+                "${env:SCOOP_GLOBAL}\\apps\\mingit\\current\\bin\\bash.exe",
+                "${env:SCOOP}\\apps\\git\\current\\bin\\bash.exe",
+                "${env:SCOOP}\\apps\\mingit\\current\\bin\\bash.exe",
+            ],
+        },
+        "PowerShell Core": {
+            "path": [
+                "${env:SCOOP_GLOBAL}\\apps\\pwsh\\current\\pwsh.exe",
+                "${env:SCOOP}\\apps\\pwsh\\current\\pwsh.exe",
+            ],
+            "args": [
+                "-NoLogo",
+                "-NoExit",
+            ],
+        },
+        "PowerShell Core (Preview)": {
+            "path": [
+                "${env:SCOOP_GLOBAL}\\apps\\pwsh-preview\\current\\pwsh.exe",
+                "${env:SCOOP}\\apps\\pwsh-preview\\current\\pwsh.exe",
+            ],
+            "args": [
+                "-NoLogo",
+                "-NoExit",
+            ],
+        },
+        "PowerShell x86": {
+            "path": [
+                "C:\\Windows\\syswow64\\WindowsPowerShell\\v1.0\\powershell.exe",
+            ],
+            "args": [
+                "-NoLogo",
+                "-NoExit",
+            ],
+        },
+    },
     "terminal.integrated.windowsEnableConpty": true,
-    "terminals.terminals": [
-        {
-            "name": "Powershell",
-            "shellPath": "powershell.exe",
-            "shellArgs": [
-                "-NoLogo",
-                "-NoExit",
-            ],
-            "focus": true,
-            "open": true,
-        },
-        {
-            "name": "Powershell Core",
-            "shellPath": "pwsh.exe",
-            "shellArgs": [
-                "-NoLogo",
-                "-NoExit",
-            ],
-            "focus": true,
-            "open": true,
-        },
-        {
-            "name": "Powershell Core Preview",
-            "shellPath": "pwsh-preview.exe",
-            "shellArgs": [
-                "-NoLogo",
-                "-NoExit",
-            ],
-            "focus": true,
-            "open": true,
-        },
-    ],
     // #region Language Specific settings
     "markdown.extension.italic.indicator": "_",
     "markdown.extension.list.indentationSize": "inherit",

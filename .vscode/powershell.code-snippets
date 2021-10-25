@@ -16,6 +16,7 @@
             "    @('getopt', 'Resolve-GetOpt'),",
             "    @('help', 'scoop_help'),",
             "    @('Helpers', 'New-IssuePrompt'),",
+            "    @('Config', 'ConvertFrom-ConfigurationFile'),",
             "    @('Alias', 'Get-ScoopAliasPath'),",
             "    @('Applications', 'Get-InstalledApplicationInformation'),",
             "    @('autoupdate', 'Invoke-Autoupdate'),",

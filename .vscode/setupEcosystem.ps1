@@ -17,7 +17,7 @@ $REPOSITORIES = @(
     @('Ash258/Scoop-Shim.git', 'Shim'),
     @('ScoopInstaller/PHP.git', 'PHP', 'Ash258/Scoop-PHP.git'),
     @('ScoopInstaller/Main.git', 'Main', 'Ash258/Scoop-Main.git'),
-    @('lukesampson/scoop-extras.git', 'Extras', 'Ash258/Scoop-Extras.git'),
+    @('ScoopInstaller/Extras.git', 'Extras', 'Ash258/Scoop-Extras.git'),
     @('Ash258/GithubActionsBucketForTesting', 'GithubActionsBucketForTesting')
 )
 

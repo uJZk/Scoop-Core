@@ -1,10 +1,8 @@
 {
     "extensions": {
         "recommendations": [
-            "CoenraadS.bracket-pair-colorizer-2",
             "DavidAnson.vscode-markdownlint",
             "EditorConfig.EditorConfig",
-            "fabiospampinato.vscode-terminals",
             "ms-dotnettools.csharp",
             "ms-vscode.powershell-preview",
             "ms-vscode-remote.remote-ssh",
@@ -154,38 +152,6 @@
             },
         },
         "terminal.integrated.windowsEnableConpty": true,
-        "terminals.terminals": [
-            {
-                "name": "Powershell",
-                "shellPath": "powershell.exe",
-                "shellArgs": [
-                    "-NoLogo",
-                    "-NoExit",
-                ],
-                "focus": true,
-                "open": true,
-            },
-            {
-                "name": "Powershell Core",
-                "shellPath": "pwsh.exe",
-                "shellArgs": [
-                    "-NoLogo",
-                    "-NoExit",
-                ],
-                "focus": true,
-                "open": true,
-            },
-            {
-                "name": "Powershell Core Preview",
-                "shellPath": "pwsh-preview.exe",
-                "shellArgs": [
-                    "-NoLogo",
-                    "-NoExit",
-                ],
-                "focus": true,
-                "open": true,
-            },
-        ],
         // #region Language Specific settings
         "markdown.extension.italic.indicator": "_",
         "markdown.extension.list.indentationSize": "inherit",
