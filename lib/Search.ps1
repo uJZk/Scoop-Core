@@ -233,10 +233,11 @@ function Search-RemoteAPI {
     process {
         if ([String]::IsNullOrEmpty($Query)) { $Query = '%' }
 
-        $api = get_config 'shovelSearchAPI' 'https://api/shovel.ash258.com/api/v1'
+        $api = get_config 'shovelSearchAPI' 'https://api.shovel.ash258.com/api/v1'
         $res = @{}
         $buckets = @()
         try {
+            # TODO: Pagination just for the convenience
             $buckets = Invoke-RestMethod -Uri "$api/bucket?size=10000&page=0"
         } catch {
             throw "Cannot get buckets information from API: $($_.Exception.Message)"
@@ -251,13 +252,14 @@ function Search-RemoteAPI {
             } catch {
                 throw "Cannot get manifests from API: $($_.Exception.Message)"
             }
-            $total = $res.total
             ++$page
+            $total = $res.total
             $final += $res.content
         } while ($total -ne $final.Count)
 
         # TODO: test if bucket is added
         # TODO: test if bucket is known
+        # TODO: Remove deprecated
         # TODO: Process results
         # $apps += @{
         #     'name'              = $resolved.ApplicationName
