@@ -1,5 +1,16 @@
-'Helpers', 'autoupdate', 'buckets', 'decompress', 'manifest', 'ManifestHelpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('autoupdate', 'Invoke-Autoupdate'),
+    @('buckets', 'Get-KnownBucket'),
+    @('decompress', 'Expand-7zipArchive'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('ManifestHelpers', 'Test-Persistence')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function nightly_version($date, $quiet = $false) {
@@ -20,7 +31,10 @@ function Deny-ArmInstallation {
                 throw [ScoopException] "Manifest does not explicitly support 'arm64' architecture. Try to install with '--arch 32bit' or '--arch 64bit' to use Windows arm emulation."
             }
         } else {
-            if ($Architecture -eq 'arm64') { throw [ScoopException] "Installation of 'arm64' version is not supported on x86 based system" }
+            if ($Architecture -eq 'arm64') {
+                if ($true -eq (get_config 'dbgBypassArmCheck' $false)) { return }
+                throw [ScoopException] "Installation of 'arm64' version is not supported on x86 based system"
+            }
         }
     }
 }

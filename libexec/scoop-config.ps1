@@ -43,7 +43,7 @@
 #
 # MSIEXTRACT_USE_LESSMSI: $true|$false
 #   Prefer lessmsi utility over native msiexec for installation of msi based installers.
-#   This is preferred option and will be default in future.
+#   Lessmsi is preferred option. Default to $true as of 2021-10-16.
 #
 # INNOSETUP_USE_INNOEXTRACT: $true|$false
 #   Prefer innoextract utility over innounp for installation of innosetup based installers.
@@ -75,6 +75,9 @@
 #   GitHub API token used for checkver/autoupdate runs to prevent rate limiting.
 #   See: 'https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token'
 #
+# dbgBypassArmCheck: $true|$false
+#   Do not fail to install arm64 version on x86 platform.
+#
 # shovelSearchAPI:
 #   Provide alternative search API for Shovel. Mainly for debugging.
 #   Has to be full API URL. Including protocol, API version.
@@ -105,8 +108,16 @@
 #   Array of additional aria2 options.
 #   See: 'https://aria2.github.io/manual/en/html/aria2c.html#options'
 
-'core', 'getopt', 'help', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 # TODO: Add --global - Ash258/Scoop-Core#5

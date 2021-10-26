@@ -4,8 +4,17 @@ Return $true if the test passed, otherwise $false.
 Use 'Write-UserMessage -Warning' to highlight the issue, and follow up with the recommended actions to rectify.
 #>
 
-'core', 'buckets', 'decompress', 'Git', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('buckets', 'Get-KnownBucket'),
+    @('decompress', 'Expand-7zipArchive'),
+    @('Git', 'Invoke-GitCmd')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function Test-DiagDrive {
@@ -67,7 +76,7 @@ function Test-DiagWindowsDefender {
     return $true
 }
 
-function Test-DiagMainBucketAdded {
+function Test-DiagBucket {
     <#
     .SYNOPSIS
         Test if main bucket was added after migration from core repository.
@@ -79,6 +88,8 @@ function Test-DiagMainBucketAdded {
     $verdict = $true
     $all = Get-LocalBucket
 
+    # Base, main added
+    # TODO: Drop main in near future for security reasons
     'main', 'Base' | ForEach-Object {
         if ($all -notcontains $_) {
             Write-UserMessage -Message "'$_' bucket is not added" -Warning
@@ -87,6 +98,20 @@ function Test-DiagMainBucketAdded {
                 "    scoop bucket add '$_'"
             )
 
+            $verdict = $false
+        }
+    }
+
+    # Extras changed
+    if ($all -contains 'extras') {
+        $path = Find-BucketDirectory -Name 'extras' -Root
+
+        if ((Invoke-GitCmd -Repository $path -Command 'remote' -Argument 'get-url', 'origin') -match 'lukesampson') {
+            Write-UserMessage -Message "'extras' bucket was moved" -Warning
+            Write-UserMessage -Message @(
+                '  Fixable with running following command:'
+                "    scoop bucket rm 'extras'; scoop bucket add 'extras'"
+            )
             $verdict = $false
         }
     }
@@ -260,7 +285,7 @@ function Test-DiagConfig {
     param()
 
     $result = $true
-    if (!(get_config 'MSIEXTRACT_USE_LESSMSI' $false)) {
+    if ($false -eq (get_config 'MSIEXTRACT_USE_LESSMSI' $true)) {
         Write-UserMessage -Message '''lessmsi'' should be used for extraction of msi installers!' -Warning
         Write-UserMessage -Message @(
             '  Fixable with running following command:'
