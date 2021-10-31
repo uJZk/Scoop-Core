@@ -1,3 +1,13 @@
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('core', 'Test-ScoopDebugEnabled')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
+}
+
 function find_description($url, $html, $redir = $false) {
     $meta = meta_tags $html
 
@@ -17,7 +27,7 @@ function find_description($url, $html, $redir = $false) {
     $refresh = meta_refresh $meta $url
     if ($refresh -and !$redir) {
         $wc = New-Object Net.Webclient
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $html = $wc.DownloadString($refresh)
 
         return find_description $refresh $html $true

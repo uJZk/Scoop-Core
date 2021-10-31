@@ -1,91 +1,80 @@
-# Usage: scoop download <apps> [options]
+# Usage: scoop download [<OPTIONS>] <APP>...
 # Summary: Download manifest files into cache folder.
-#
-# Help: All manifest files will be downloaded into cache folder.
+# Help: All manifest files will be downloaded into cache folder without need to install the application.
 #
 # Options:
 #   -h, --help                      Show help for this command.
-#   -s, --skip                      Skip hash check validation.
-#   -u, --utility <native|aria2>    Force using specific download utility.
+#   -s, --skip                      Skip hash check validation (use with caution!).
+#   -u, --utility <native|aria2>    Force to download with specific utility.
 #   -a, --arch <32bit|64bit>        Use the specified architecture.
-#   -b, --all-architectures         All avaible files across all architectures will be downloaded.
+#   -b, --all-architectures         All available files across all architectures will be downloaded.
 
-'getopt', 'help', 'manifest', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
-
 #region Parameter validation
-$opt, $application, $err = getopt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
-if ($err) { Stop-ScoopExecution -Message "scoop install: $err" -ExitCode 2 }
+$opt, $application, $err = Resolve-GetOpt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
+if ($err) { Stop-ScoopExecution -Message "scoop download: $err" -ExitCode 2 }
 
 $checkHash = -not ($opt.s -or $opt.skip)
 $utility = $opt.u, $opt.utility, 'native' | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
 
-if (!$application) { Stop-ScoopExecution -Message 'Parameter <apps> missing' }
+if (!$application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' }
 if (($utility -eq 'aria2') -and (!(Test-HelperInstalled -Helper Aria2))) { Stop-ScoopExecution -Message 'Aria2 is not installed' }
 
-try {
-    $architecture = ensure_architecture ($opt.a + $opt.arch)
-} catch {
-    Stop-ScoopExecution -Message "$_" -ExitCode 2
-}
-# Add both architectures
-if ($opt.b -or $opt.'all-architectures') { $architecture = '32bit', '64bit' }
+$Architecture = Resolve-ArchitectureParameter -Architecture $opt.a, $opt.arch
+
+# Add all supported architectures
+if ($opt.b -or $opt.'all-architectures') { $Architecture = $SHOVEL_SUPPORTED_ARCHITECTURES }
 #endregion Parameter validation
 
 $exitCode = 0
 $problems = 0
+
 foreach ($app in $application) {
-    # Prevent leaking variables from previous iteration
-    $cleanAppName = $bucket = $version = $appName = $manifest = $foundBucket = $url = $null
-
-    $cleanAppName, $bucket, $version = parse_app $app
-    $appName, $manifest, $foundBucket, $url = Find-Manifest $cleanAppName $bucket
-    if ($null -eq $bucket) { $bucket = $foundBucket }
-
-    # Handle potential use case, which should not appear, but just in case
-    # If parsed name/bucket is not same as the provided one
-    if ((-not $url) -and (($cleanAppName -ne $appName) -or ($bucket -ne $foundBucket))) {
-        debug $bucket
-        debug $cleanAppName
-        debug $foundBucket
-        debug $appName
-
-        Write-UserMessage -Message 'Found application name or bucket is not same as requested' -Err
+    $resolved = $null
+    try {
+        $resolved = Resolve-ManifestInformation -ApplicationQuery $app
+    } catch {
         ++$problems
+        debug $_.InvocationInfo
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
 
         continue
     }
 
-    # Generate manifest if there is different version in manifest
-    if (($null -ne $version) -and ($manifest.version -ne $version)) {
-        $generated = generate_user_manifest $appName $bucket $version
-        if ($null -eq $generated) {
-            Write-UserMessage -Message 'Manifest cannot be generated with provided version' -Err
-            ++$problems
+    debug $resolved
 
-            continue
-        }
-        $manifest = parse_json $generated
-    }
-
-    if (-not $version) { $version = $manifest.version }
+    # TODO: Remove not neeeded variables. Keep them for now just for less changes
+    $appName = $resolved.ApplicationName
+    $manifest = $resolved.ManifestObject
+    $bucket = $resolved.Bucket
+    $version = $manifest.version
     if ($version -eq 'nightly') {
         $version = nightly_version (Get-Date)
         $checkHash = $false
     }
 
-    Write-UserMessage "Starting download for $app" -Color 'Green'
+    Write-UserMessage "Starting download for '$app'" -Color 'Green' # TODO: Add better text with parsed appname, version, url/bucket
 
     $registered = $false
     # TODO: Rework with proper wrappers after #3149
     switch ($utility) {
         'aria2' {
-            foreach ($arch in $architecture) {
+            foreach ($arch in $Architecture) {
                 try {
-                    dl_with_cache_aria2 $appName $version $manifest $arch $cachedir $manifest.cookie $true $checkHash
+                    dl_with_cache_aria2 $appName $version $manifest $arch $SCOOP_CACHE_DIRECTORY $manifest.cookie $true $checkHash
                 } catch {
                     # Do not count specific architectures or URLs
                     if (!$registered) {
@@ -93,11 +82,8 @@ foreach ($app in $application) {
                         ++$problems
                     }
 
-                    $title, $body = $_.Exception.Message -split '\|-'
-                    if (!$body) { $body = $title }
-                    Write-UserMessage -Message $body -Err
                     debug $_.InvocationInfo
-                    if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                    New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                     continue
                 }
@@ -105,7 +91,7 @@ foreach ($app in $application) {
         }
 
         'native' {
-            foreach ($arch in $architecture) {
+            foreach ($arch in $Architecture) {
                 foreach ($url in (url $manifest $arch)) {
                     try {
                         dl_with_cache $appName $version $url $null $manifest.cookie $true
@@ -131,11 +117,8 @@ foreach ($app in $application) {
                             ++$problems
                         }
 
-                        $title, $body = $_.Exception.Message -split '\|-'
-                        if (!$body) { $body = $title }
-                        Write-UserMessage -Message $body -Err
                         debug $_.InvocationInfo
-                        if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                         continue
                     }

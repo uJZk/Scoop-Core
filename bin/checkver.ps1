@@ -75,6 +75,11 @@ $Search = $App
 $Queue = @()
 $UNIVERSAL_REGEX = '[vV]?([\d.]+)'
 $GITHUB_REGEX = "/releases/tag/$UNIVERSAL_REGEX"
+$GH_TOKEN = $env:GITHUB_TOKEN
+$cfToken = get_config 'githubToken'
+if ($cfToken) { $GH_TOKEN = $cfToken }
+$exitCode = 0
+$problems = 0
 
 #region Functions
 function next($AppName, $Err) {
@@ -209,13 +214,14 @@ function Invoke-Check {
         if ($Version -ne '') { $ver = $Version }
 
         try {
-            $newManifest = Invoke-Autoupdate $appName $Dir $json $ver $matchesHashtable
+            $newManifest = Invoke-Autoupdate $appName $Dir $json $ver $matchesHashtable -Extension $gci.Extension
             if ($null -eq $newManifest) { throw "Could not update $appname" }
 
             Write-UserMessage -Message "Writing updated $appName manifest" -Color 'DarkGreen'
             ConvertTo-Manifest -Path $gci.FullName -Manifest $newManifest
         } catch {
             Write-UserMessage -Message $_.Exception.Message -Err
+            throw 'Trigger problem detection'
         }
     }
 }
@@ -235,6 +241,7 @@ foreach ($ff in Get-ChildItem $Dir "$Search.*" -File) {
         $m = ConvertFrom-Manifest -Path $ff.FullName
     } catch {
         Write-UserMessage -Message "Invalid manifest: $($ff.Name)" -Err
+        ++$problems
         continue
     }
     if ($m.checkver) {
@@ -249,12 +256,13 @@ foreach ($ff in Get-ChildItem $Dir "$Search.*" -File) {
 foreach ($q in $Queue) {
     $gci, $json = $q
     $name = $gci.Name
+    $problemOccured = $false # Partially prevent duplicating problems
 
     $substitutions = Get-VersionSubstitution -Version $json.version
 
     $wc = New-Object System.Net.Webclient
     $ua = $json.checkver.useragent
-    $ua = if ($ua) { Invoke-VariableSubstitution -Entity $ua -Substitutes $substitutions } else { Get-UserAgent }
+    $ua = if ($ua) { Invoke-VariableSubstitution -Entity $ua -Substitutes $substitutions } else { $SHOVEL_USERAGENT }
     $wc.Headers.Add('User-Agent', $ua)
 
     Register-ObjectEvent $wc DownloadStringCompleted -ErrorAction Stop | Out-Null
@@ -265,27 +273,34 @@ foreach ($q in $Queue) {
     $xpath = ''
     $replace = ''
     $reverse = $json.checkver.reverse -and $json.checkver.reverse -eq 'true'
+    $useGithubAPI = $false
 
     if ($json.checkver.url) { $url = $json.checkver.url }
 
     if ($json.checkver -eq 'github') {
         if (!$json.homepage.StartsWith('https://github.com/')) {
             Write-UserMessage -Message "$name checkver expects the homepage to be a github repository" -Err
+            $problemOccured = $true
         }
-        $url = $json.homepage + '/releases/latest'
+        $url = $json.homepage.TrimEnd('/') + '/releases/latest'
         $regex = $GITHUB_REGEX
+        $useGithubAPI = $true
     }
     if ($json.checkver.github) {
-        $url = $json.checkver.github + '/releases/latest'
+        $url = $json.checkver.github.TrimEnd('/') + '/releases/latest'
         $regex = $GITHUB_REGEX
+        # TODO: See if this could be used allways
+        if ($json.checkver.PSObject.Properties.Count -eq 1) { $useGithubAPI = $true }
     }
 
     if ($json.checkver.re) {
         Write-UserMessage -Message "${name}: 're' is deprecated. Use 'regex' instead" -Err
+        $problemOccured = $true
         $regex = $json.checkver.re
     }
     if ($json.checkver.jp) {
         Write-UserMessage -Message "${name}: 'jp' is deprecated. Use 'jsonpath' instead" -Err
+        $problemOccured = $true
         $jsonpath = $json.checkver.jp
     }
 
@@ -297,6 +312,11 @@ foreach ($q in $Queue) {
         $regex = if ($json.checkver -is [System.String]) { $json.checkver } else { $UNIVERSAL_REGEX }
     }
 
+    if ($url -like '*api.github.com/*') { $useGithubAPI = $true }
+    if ($useGithubAPI -and ($null -ne $GH_TOKEN)) {
+        $url = $url -replace '//(www\.)?github.com/', '//api.github.com/repos/'
+        $wc.Headers.Add('Authorization', "token $GH_TOKEN")
+    }
     $url = Invoke-VariableSubstitution -Entity $url -Substitutes $substitutions
 
     $state = New-Object PSObject @{
@@ -310,6 +330,8 @@ foreach ($q in $Queue) {
         'replace'  = $replace
         'gci'      = $gci
     }
+
+    if ($problemOccured) { ++$problems }
 
     $wc.Headers.Add('Referer', (strip_filename $url))
     $wc.DownloadStringAsync($url, $state)
@@ -325,10 +347,12 @@ while ($inProgress -lt $Queue.Length) {
     try {
         Invoke-Check $ev
     } catch {
+        ++$problems
         continue
     }
 }
 
-exit 0
+if ($problems -gt 0) { $exitCode = 10 + $problems }
+exit $exitCode
 
 #endregion Main

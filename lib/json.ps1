@@ -1,3 +1,13 @@
+@(
+    @('Helpers', 'New-IssuePrompt'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
+}
+
 # Convert objects to pretty json
 # Only needed until PowerShell ConvertTo-Json will be improved https://github.com/PowerShell/PowerShell/issues/2736
 # https://github.com/PowerShell/PowerShell/issues/2736 was fixed in pwsh
@@ -90,6 +100,9 @@ function json_path([String] $json, [String] $jsonpath, [Hashtable] $substitution
     Add-Type -Path (Join-Path $PSScriptRoot '\..\supporting\validator\bin\Newtonsoft.Json.dll')
 
     if ($null -ne $substitutions) { $jsonpath = Invoke-VariableSubstitution -Entity $jsonpath -Substitutes $substitutions -EscapeRegularExpression:($jsonpath -like '*=~*') }
+
+    debug $jsonpath
+
     try {
         $obj = [Newtonsoft.Json.Linq.JObject]::Parse($json)
     } catch [Newtonsoft.Json.JsonReaderException] {
@@ -118,9 +131,10 @@ function json_path([String] $json, [String] $jsonpath, [Hashtable] $substitution
 function json_path_legacy([String] $json, [String] $jsonpath, [Hashtable] $substitutions) {
     $result = $json | ConvertFrom-Json -ErrorAction Stop
     $isJsonPath = $jsonpath.StartsWith('$')
-    $jsonpath.split('.') | ForEach-Object {
-        $el = $_
 
+    debug $jsonpath
+
+    foreach ($el in $jsonpath.split('.')) {
         # Substitute the basename and version varibales into the jsonpath
         if ($null -ne $substitutions) { $el = Invoke-VariableSubstitution -Entity $el -Substitutes $substitutions }
 

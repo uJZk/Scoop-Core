@@ -1,9 +1,12 @@
-'core', 'Git' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Git', 'Invoke-GitCmd')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
-
-$SCOOP_BUCKETS_DIRECTORY = Join-Path $SCOOP_ROOT_DIRECTORY 'buckets'
-$bucketsdir = $SCOOP_BUCKETS_DIRECTORY
 
 function Find-BucketDirectory {
     <#
@@ -39,8 +42,19 @@ function Get-LocalBucket {
     .SYNOPSIS
         List all local bucket names.
     #>
+    [CmdletBinding()]
+    param()
 
-    return (Get-ChildItem -Directory $SCOOP_BUCKETS_DIRECTORY).Name
+    process {
+        $bucs = @()
+        try {
+            $bucs += (Get-ChildItem -LiteralPath $SCOOP_BUCKETS_DIRECTORY -ErrorAction 'Stop' -Directory).Name
+        } catch {
+            $bucs = @() # Edge case which should never happen as there will always be main bucket, but it will prevent possible issues
+        }
+
+        return $bucs
+    }
 }
 
 function known_bucket_repos {

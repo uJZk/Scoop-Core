@@ -1,162 +1,194 @@
-# Usage: scoop info <app> [options]
-# Summary: Display information about an app
+# Usage: scoop info [<OPTIONS>] <APP>
+# Summary: Display information about an application.
 #
 # Options:
-#   -h, --help      Show help for this command.
+#   -h, --help                      Show help for this command.
+#   -a, --arch <32bit|64bit|arm64>  Use the specified architecture, if the application's manifest supports it.
 
-param($app)
-
-'buckets', 'core', 'depends', 'help', 'install', 'manifest', 'Versions' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Applications', 'Get-InstalledApplicationInformation'),
+    @('buckets', 'Get-KnownBucket'),
+    @('depends', 'script_deps'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
+$ExitCode = 0
+$Options, $Application, $_err = Resolve-GetOpt $args 'a:' 'arch='
 
-if (!$app) { Stop-ScoopExecution -Message 'Parameter <app> missing' -Usage (my_usage) }
+if ($_err) { Stop-ScoopExecution -Message "scoop info: $_err" -ExitCode 2 }
+if (!$Application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 
-if ($app -match '^(ht|f)tps?://|\\\\') {
-    # check if $app is a URL or UNC path
-    $url = $app
-    $app = appname_from_url $url
-    $global = installed $app $true
-    $status = app_status $app $global
-    $manifest = url_manifest $url
+$Application = $Application[0]
+$Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
+
+# TODO: Adopt Resolve-ManifestInformation
+if ($Application -match '^(ht|f)tps?://|\\\\') {
+    # check if $Application is a URL or UNC path
+    $url = $Application
+    $Application = appname_from_url $url
+    $Global = installed $Application $true
+    $Status = app_status $Application $Global
+    $Manifest = url_manifest $url
     $manifest_file = $url
 } else {
-    # else $app is a normal app name
-    $global = installed $app $true
-    $app, $bucket, $null = parse_app $app
-    $status = app_status $app $global
-    $manifest, $bucket = find_manifest $app $bucket
+    # else $Application is a normal app name
+    $Global = installed $Application $true
+    $Application, $bucket, $null = parse_app $Application
+    $Status = app_status $Application $Global
+    $Manifest, $bucket = find_manifest $Application $bucket
 }
 
-if (!$manifest) { Stop-ScoopExecution -Message "Could not find manifest for '$(show_app $app $bucket)'." }
+if (!$Manifest) { Stop-ScoopExecution -Message "Could not find manifest for '$(show_app $Application $bucket)'" }
 
-$install = install_info $app $status.version $global
-$status.installed = $install.bucket -eq $bucket
-$version_output = $manifest.version
+$Name = $Application
+
+$install = install_info $Name $Status.version $Global
+$Status.installed = $install.bucket -eq $bucket
+$version_output = $Manifest.version
 if (!$manifest_file) {
-    $manifest_file = manifest_path $app $bucket
+    $manifest_file = manifest_path $Name $bucket
 }
 
-$currentVersion = Select-CurrentVersion -AppName $app -Global:$global
-$dir = versiondir $app $currentVersion $global
-$original_dir = versiondir $app $manifest.version $global
-$persist_dir = persistdir $app $global
+$currentVersion = Select-CurrentVersion -AppName $Name -Global:$Global
+$dir = versiondir $Name $currentVersion $Global
+$original_dir = versiondir $Name $Manifest.version $Global
+$persist_dir = persistdir $Name $Global
 
-$architecture = default_architecture
-if ($status.installed) {
-    $manifest_file = manifest_path $app $install.bucket
+if ($Status.installed) {
+    $manifest_file = manifest_path $Name $install.bucket
     if ($install.url) {
         $manifest_file = $install.url
     }
-    if ($status.version -eq $manifest.version) {
-        $version_output = $status.version
+    if ($Status.version -eq $Manifest.version) {
+        $version_output = $Status.version
     } else {
-        $version_output = "$($status.version) (Update to $($manifest.version) available)"
+        $version_output = "$($Status.version) (Update to $($Manifest.version) available)"
     }
-    $architecture = $install.architecture
+    $Architecture = $install.architecture
 }
 
-$message = @("Name: $app")
-$message += "Version: $version_output"
-if ($manifest.description) { $message += "Description: $($manifest.description)" }
-if ($manifest.homepage) { $message += "Website: $($manifest.homepage)" }
+$Message = @("Name: $Name")
+$Message += "Version: $version_output"
+if ($Manifest.description) { $Message += "Description: $($Manifest.description)" }
+if ($Manifest.homepage) { $Message += "Website: $($Manifest.homepage)" }
 
 # Show license
 # TODO: Rework
-if ($manifest.license) {
-    $license = $manifest.license
-    if ($manifest.license.identifier -and $manifest.license.url) {
-        $license = "$($manifest.license.identifier) ($($manifest.license.url))"
-    } elseif ($manifest.license -match '^((ht)|f)tps?://') {
-        $license = "$($manifest.license)"
-    } elseif ($manifest.license -match '[|,]') {
-        $licurl = $manifest.license.Split('|,') | ForEach-Object { "https://spdx.org/licenses/$_.html" }
-        $license = "$($manifest.license) ($($licurl -join ', '))"
+if ($Manifest.license) {
+    $license = $Manifest.license
+    if ($Manifest.license.identifier -and $Manifest.license.url) {
+        $license = "$($Manifest.license.identifier) ($($Manifest.license.url))"
+    } elseif ($Manifest.license -match '^((ht)|f)tps?://') {
+        $license = "$($Manifest.license)"
+    } elseif ($Manifest.license -match '[|,]') {
+        $licurl = $Manifest.license.Split('|,') | ForEach-Object { "https://spdx.org/licenses/$_.html" }
+        $license = "$($Manifest.license) ($($licurl -join ', '))"
     } else {
-        $license = "$($manifest.license) (https://spdx.org/licenses/$($manifest.license).html)"
+        $license = "$($Manifest.license) (https://spdx.org/licenses/$($Manifest.license).html)"
     }
-    $message += "License: $license"
+    $Message += "License: $license"
 }
-if ($manifest.changelog) {
-    $ch = $manifest.changelog
+if ($Manifest.changelog) {
+    $ch = $Manifest.changelog
     if (!$ch.StartsWith('http')) {
-        if ($status.installed) {
+        if ($Status.installed) {
             $ch = Join-Path $dir $ch
         } else {
             $ch = "Could be found in file '$ch' inside application directory. Install application to see a recent changes"
         }
     }
-    $message += "Changelog: $ch"
+    $Message += "Changelog: $ch"
 }
 
 # Manifest file
-$message += @('Manifest:', "  $manifest_file")
+$Message += @('Manifest:', "  $manifest_file")
 
 # Show installed versions
-if ($status.installed) {
-    $message += 'Installed:'
-    $versions = Get-InstalledVersion -AppName $app -Global:$global
+if ($Status.installed) {
+    $Message += 'Installed:'
+    $versions = Get-InstalledVersion -AppName $Name -Global:$Global
     $versions | ForEach-Object {
-        $dir = versiondir $app $_ $global
-        if ($global) { $dir += ' *global*' }
-        $message += "  $dir"
+        $dir = versiondir $Name $_ $Global
+        if ($Global) { $dir += ' *global*' }
+        $Message += "  $dir"
     }
 } else {
-    $message += 'Installed: No'
+    $Message += 'Installed: No'
 }
 
-$binaries = @(arch_specific 'bin' $manifest $architecture)
+$binaries = @(arch_specific 'bin' $Manifest $Architecture)
 if ($binaries) {
-    $message += 'Binaries:'
+    $Message += 'Binaries:'
     $add = ''
-    $binaries | ForEach-Object {
-        $addition = "$_"
-        if ($_ -is [System.Array]) {
-            $addition = $_[0]
-            if ($_[1]) {
-                $addition = "$($_[1]).exe"
+    foreach ($b in $binaries) {
+        $addition = "$b"
+        if ($b -is [System.Array]) {
+            $addition = $b[0]
+            if ($b[1]) {
+                $addition = "$($b[1]).exe"
             }
         }
         $add = "$add $addition"
     }
-    $message += $add
+    $Message += $add
 }
 
-$env_set = arch_specific 'env_set' $manifest $architecture
-$env_add_path = @(arch_specific 'env_add_path' $manifest $architecture)
+#region Environment
+$env_set = arch_specific 'env_set' $Manifest $Architecture
+$env_add_path = @(arch_specific 'env_add_path' $Manifest $Architecture)
 
 if ($env_set -or $env_add_path) {
     $m = 'Environment:'
-    if (!$status.installed) {
-        $m += ' (simulated)'
-    }
-    $message += $m
+    if (!$Status.installed) { $m += ' (simulated)' }
+    $Message += $m
 }
 
 if ($env_set) {
-    $env_set | Get-Member -MemberType 'NoteProperty' | ForEach-Object {
-        $value = env $_.name $global
+    foreach ($es in $env_set | Get-Member -MemberType 'NoteProperty') {
+        $value = env $es.Name $Global
         if (!$value) {
-            $value = format $env_set.$($_.name) @{ 'dir' = $dir }
+            $value = format $env_set.$($es.Name) @{ 'dir' = $dir }
         }
-        $message += "  $($_.name)=$value"
+        $Message += "  $($es.Name)=$value"
     }
 }
 if ($env_add_path) {
-    $env_add_path | Where-Object { $_ } | ForEach-Object {
+    # TODO: Should be path rather joined on one line or with multiple PATH=??
+    # Original:
+    # PATH=%PATH%;C:\SCOOP\apps\yarn\current\global\node_modules\.bin
+    # PATH=%PATH%;C:\SCOOP\apps\yarn\current\Yarn\bin
+    # vs:
+    # PATH=%PATH%;C:\SCOOP\apps\yarn\current\global\node_modules\.bin;C:\SCOOP\apps\yarn\current\Yarn\bin
+    foreach ($ea in $env_add_path | Where-Object { $_ }) {
         $to = "$dir"
-        if ($_ -ne '.') {
-            $to = "  PATH=%PATH%;$to\$_"
+        if ($ea -ne '.') {
+            $to = "$to\$ea"
         }
-        $message += $to
+        $Message += "  PATH=%PATH%;$to"
     }
 }
+#endregion Environment
 
-Write-UserMessage -Message $message -Output
+# Available versions:
+$vers = Find-BucketDirectory -Name $bucket | Join-Path -ChildPath "old\$Name" | Get-ChildItem -ErrorAction 'SilentlyContinue' -File |
+    Where-Object -Property 'Name' -Match -Value "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)$"
+
+if ($vers.Count -gt 0) { $Message += "Available Versions: $($vers.BaseName -join ', ')" }
+
+Write-UserMessage -Message $Message -Output
 
 # Show notes
-show_notes $manifest $dir $original_dir $persist_dir
+show_notes $Manifest $dir $original_dir $persist_dir
 
-exit 0
+exit $ExitCode

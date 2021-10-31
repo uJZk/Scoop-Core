@@ -1,23 +1,36 @@
-# Usage: scoop depends <app> [options]
-# Summary: List dependencies for an app
+# Usage: scoop depends [<OPTIONS>] <APP>
+# Summary: List dependencies for an application.
 #
 # Options:
-#   -h, --help      Show help for this command.
+#   -h, --help                      Show help for this command.
+#   -a, --arch <32bit|64bit|arm64>  Use the specified architecture, if the application's manifest supports it.
 
-'depends', 'install', 'manifest', 'buckets', 'getopt', 'decompress', 'help' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('depends', 'script_deps')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
+$ExitCode = 0
+$Options, $Applications, $_err = Resolve-GetOpt $args 'a:' 'arch='
 
-$opt, $apps, $err = getopt $args 'a:' 'arch='
-$app = $apps[0]
-$architecture = default_architecture
+if ($_err) { Stop-ScoopExecution -Message "scoop depends: $_err" -ExitCode 2 }
 
-if ($err) { Stop-ScoopExecution -Message "scoop depends: $err" -ExitCode 2 }
-if (!$app) { Stop-ScoopExecution -Message 'Parameter <app> missing' -Usage (my_usage) }
+# TODO: Multiple apps?
+$Application = $Applications[0]
+$Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
 
-$deps = @(deps $app $architecture)
-if ($deps) { $deps[($deps.length - 1)..0] }
+if (!$Application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 
-exit 0
+# TODO: Installed dependencies are not listed. Should they be shown??
+$deps = @(deps $Application $Architecture)
+if ($deps) { $deps[($deps.Length - 1)..0] | Write-UserMessage -Output }
+
+exit $ExitCode

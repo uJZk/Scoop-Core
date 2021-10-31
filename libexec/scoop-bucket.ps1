@@ -1,13 +1,13 @@
-# Usage: scoop bucket [add|list|known|rm] [<args>] [options]
-# Summary: Manage Scoop buckets
+# Usage: scoop bucket [<SUBCOMMAND>] [<OPTIONS>] [<NAME> [<REPOSITORY>]]
+# Summary: Manage local scoop buckets.
 # Help: Add, list or remove buckets.
 #
-# Buckets are repositories of apps available to install. Scoop comes with
-# a default bucket, but you can also add buckets that you or others have
+# Buckets are repositories of manifests available to install. Scoop comes with
+# a default (main) bucket, but you can also add buckets that you or others have
 # published.
 #
 # To add a bucket:
-#   scoop bucket add <name> [<repo>]
+#   scoop bucket add <NAME> [<REPOSITORY>]
 # eg:
 #   scoop bucket add Ash258 https://github.com/Ash258/Scoop-Ash258.git
 #   scoop bucket add extras
@@ -17,21 +17,42 @@
 # To list all known buckets, use:
 #   scoop bucket known
 #
+# Subcommands:
+#   add             Add a new bucket.
+#   list            List all locally added buckets. Default subcommand when none is provided.
+#   known           List all buckets, which are considered as "known" and could be added without providing repository URL.
+#   rm              Remove an already added bucket.
+#
 # Options:
 #   -h, --help      Show help for this command.
 
-param($Cmd, $Name, $Repo)
-
-'buckets', 'help' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('buckets', 'Get-KnownBucket')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
+$ExitCode = 0
+$Options, $Bucket, $_err = Resolve-GetOpt $args
 
-$exitCode = 0
-switch ($Cmd) {
+if ($_err) { Stop-ScoopExecution -Message "scoop bucket: $_err" -ExitCode 2 }
+
+$Operation = $Bucket[0]
+$Name = $Bucket[1]
+$Repo = $Bucket[2]
+
+if (!$Operation) { $Operation = 'list' }
+
+switch ($Operation) {
     'add' {
-        if (!$Name) { Stop-ScoopExecution -Message 'Parameter <name> is missing' -Usage (my_usage) }
+        if (!$Name) { Stop-ScoopExecution -Message 'Parameter <NAME> is missing' -Usage (my_usage) }
 
         try {
             Add-Bucket -Name $Name -RepositoryUrl $Repo
@@ -40,7 +61,7 @@ switch ($Cmd) {
         }
     }
     'rm' {
-        if (!$Name) { Stop-ScoopExecution -Message 'Parameter <name> missing' -Usage (my_usage) }
+        if (!$Name) { Stop-ScoopExecution -Message 'Parameter <NAME> missing' -Usage (my_usage) }
 
         try {
             Remove-Bucket -Name $Name
@@ -55,8 +76,9 @@ switch ($Cmd) {
         Get-LocalBucket
     }
     default {
-        Stop-ScoopExecution -Message 'No parameter provided' -Usage (my_usage)
+        Write-UserMessage -Message "Unknown subcommand: '$Operation'" -Err
+        $ExitCode = 2
     }
 }
 
-exit $exitCode
+exit $ExitCode

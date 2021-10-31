@@ -67,7 +67,7 @@ function test_dl([String] $url, $cookies) {
     $wreq = [System.Net.WebRequest]::Create($url)
     $wreq.Timeout = $Timeout * 1000
     if ($wreq -is [System.Net.HttpWebRequest]) {
-        $wreq.UserAgent = Get-UserAgent
+        $wreq.UserAgent = $SHOVEL_USERAGENT
         $wreq.Referer = strip_filename $url
         if ($cookies) {
             $wreq.Headers.Add('Cookie', (cookie_header $cookies))
@@ -100,9 +100,9 @@ foreach ($man in $Queue) {
     if ($manifest.url) {
         $manifest.url | ForEach-Object { $urls += $_ }
     } else {
-        # TODO: Multiple architectures
-        url $manifest '64bit' | ForEach-Object { $urls += $_ }
-        url $manifest '32bit' | ForEach-Object { $urls += $_ }
+        foreach ($a in $SHOVEL_SUPPORTED_ARCHITECTURES) {
+            url $manifest $a | ForEach-Object { $urls += $_ }
+        }
     }
 
     $urls | ForEach-Object {

@@ -1,5 +1,11 @@
-'core' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('core', 'Test-ScoopDebugEnabled')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function Invoke-GitCmd {
@@ -30,6 +36,7 @@ function Invoke-GitCmd {
             $Repository = $Repository.TrimEnd('\').TrimEnd('/')
             $preAction = @('-C', """$Repository""")
         }
+        $preAction += '--no-pager'
     }
 
     process {
@@ -43,19 +50,19 @@ function Invoke-GitCmd {
                 $Argument += '--rebase=false'
             }
             'UpdateLog' {
-                $preAction += '--no-pager'
                 $action = 'log'
                 $para = @(
                     '--no-decorate'
                     '--format="tformat: * %C(yellow)%h%Creset %<|(72,trunc)%s %C(cyan)%cr%Creset"'
-                    '--grep="\[\(scoop\|shovel\) skip\]"' # Ignore [scoop skip] [shovel skip]
-                    '--grep="^Merge [cb]"' # Ignore merge commits
+                    '--regexp-ignore-case'
+                    '--extended-regexp'
                     '--invert-grep'
+                    '--grep="\[(scoop|shovel) skip\]"' # Ignore [scoop skip] [shovel skip]
+                    '--grep="^Merge [pcb]"' # Ignore merge commits
                 )
                 $Argument = $para + $Argument
             }
             'VersionLog' {
-                $preAction += '--no-pager'
                 $action = 'log'
                 $Argument += '--oneline', '--max-count=1', 'HEAD'
             }
