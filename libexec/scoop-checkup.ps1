@@ -1,34 +1,47 @@
-# Usage: scoop checkup [options]
-# Summary: Check for potential problems
-# Help: Performs a series of diagnostic tests to try to identify things that may cause problems with Scoop.
+# Usage: scoop checkup [<OPTIONS>]
+# Summary: Check system for pontential problems.
+# Help: Perform a series of diagnostic tests to try to identify configurations/issues that may cause problems while using scoop.
 #
 # Options:
 #   -h, --help      Show help for this command.
 
-'core', 'Diagnostic', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Diagnostic', 'Test-DiagMainBucketAdded')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-$issues = 0
-$issues += !(Test-DiagWindowsDefender)
-$issues += !(Test-DiagWindowsDefender -Global)
-$issues += !(Test-DiagMainBucketAdded)
-$issues += !(Test-DiagLongPathEnabled)
-$issues += !(Test-DiagEnvironmentVariable)
-$issues += !(Test-DiagHelpersInstalled)
-$issues += !(Test-DiagDrive)
-$issues += !(Test-DiagConfig)
-$issues += !(Test-DiagCompletionRegistered)
-$issues += !(Test-DiagShovelAdoption)
-$issues += !(Test-MainBranchAdoption)
-$issues += !(Test-ScoopConfigFile)
+$ExitCode = 0
+$Problems = 0
+$Options, $null, $_err = Resolve-GetOpt $args
 
-if ($issues -gt 0) {
-    Write-UserMessage -Message '', "Found $issues potential $(pluralize $issues 'problem' 'problems')." -Warning
-    $exitCode = 10 + $issues
+if ($_err) { Stop-ScoopExecution -Message "scoop checkup: $_err" -ExitCode 2 }
+
+$Problems += !(Test-DiagWindowsDefender)
+$Problems += !(Test-DiagWindowsDefender -Global)
+$Problems += !(Test-DiagBucket)
+$Problems += !(Test-DiagLongPathEnabled)
+$Problems += !(Test-DiagEnvironmentVariable)
+$Problems += !(Test-DiagHelpersInstalled)
+$Problems += !(Test-DiagDrive)
+$Problems += !(Test-DiagConfig)
+$Problems += !(Test-DiagCompletionRegistered)
+$Problems += !(Test-DiagShovelAdoption)
+$Problems += !(Test-MainBranchAdoption)
+$Problems += !(Test-ScoopConfigFile)
+
+if ($Problems -gt 0) {
+    Write-UserMessage -Message '', "Found $Problems potential $(pluralize $Problems 'problem' 'problems')." -Warning
+    $ExitCode = 10 + $Problems
 } else {
     Write-UserMessage -Message 'No problems identified!' -Success
-    $exitCode = 0
 }
 
-exit $exitCode
+exit $ExitCode

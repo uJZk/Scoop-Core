@@ -8,7 +8,7 @@
 #    array of strings that are long-form options. options that take
 #    a parameter should end with '='
 # returns @(opts hash, remaining_args array, error string)
-function getopt($argv, $shortopts, $longopts) {
+function Resolve-GetOpt($argv, $shortopts, $longopts) {
     $opts = @{ }
     $rem = @()
 
@@ -27,6 +27,8 @@ function getopt($argv, $shortopts, $longopts) {
         if ($arg -is [array]) { $rem += , $arg; continue }
         if ($arg -is [int]) { $rem += $arg; continue }
         if ($arg -is [decimal]) { $rem += $arg; continue }
+        if ($arg -is [boolean]) { $rem += $arg; continue }
+        if ($arg -is [System.Collections.Hashtable]) { $rem += $arg; continue }
 
         if ($arg.startswith('--')) {
             $name = $arg.substring(2)

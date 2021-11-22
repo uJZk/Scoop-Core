@@ -1,57 +1,74 @@
-# Usage: scoop update <app> [options]
-# Summary: Update apps, or Scoop itself
-# Help: 'scoop update' updates Scoop to the latest version.
-# 'scoop update <app>' installs a new version of that app, if there is one.
+# Usage: scoop update [<OPTIONS>] [<APP>...]
+# Summary: Update installed application(s), or scoop itself.
+# Help: 'scoop update' updates scoop and all local buckets to the latest version.
+# 'scoop update <APP>' updates already installed application to the latest available version.
 #
-# You can use '*' in place of <app> to update all apps.
+# You can use '*' in place of <APP> to update all applications.
 #
 # Options:
 #   -h, --help                Show help for this command.
-#   -f, --force               Force update even when there isn't a newer version.
-#   -g, --global              Update a globally installed app.
-#   -i, --independent         Don't install dependencies automatically.
-#   -k, --no-cache            Don't use the download cache.
+#   -f, --force               Force update even when there is not a newer version.
+#   -g, --global              Update a globally installed application(s).
+#   -i, --independent         Do not install dependencies automatically.
+#   -k, --no-cache            Do not use the download cache.
 #   -s, --skip                Skip hash validation (use with caution!).
 #   -q, --quiet               Hide extraneous messages.
 
-'depends', 'Helpers', 'getopt', 'manifest', 'Uninstall', 'Update', 'Versions', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Applications', 'Get-InstalledApplicationInformation'),
+    @('depends', 'script_deps'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('Uninstall', 'Uninstall-ScoopApplication'),
+    @('Update', 'Update-ScoopCoreClone'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
+$ExitCode = 0
+$Problems = 0
+$Options, $Applications, $_err = Resolve-GetOpt $args 'gfiksq' 'global', 'force', 'independent', 'no-cache', 'skip', 'quiet'
 
-$opt, $apps, $err = getopt $args 'gfiksq' 'global', 'force', 'independent', 'no-cache', 'skip', 'quiet'
-if ($err) { Stop-ScoopExecution -Message "scoop update: $err" -ExitCode 2 }
+if ($_err) { Stop-ScoopExecution -Message "scoop update: $_err" -ExitCode 2 }
 
 # Flags/Parameters
-$global = $opt.g -or $opt.global
-$force = $opt.f -or $opt.force
-$checkHash = !($opt.s -or $opt.skip)
-$useCache = !($opt.k -or $opt.'no-cache')
-$quiet = $opt.q -or $opt.quiet
-$independent = $opt.i -or $opt.independent
+$Global = $Options.g -or $Options.global
+$Force = $Options.f -or $Options.force
+$CheckHash = !($Options.s -or $Options.skip)
+$UseCache = !($Options.k -or $Options.'no-cache')
+$Quiet = $Options.q -or $Options.quiet
+$Independent = $Options.i -or $Options.independent
 
-$exitCode = 0
-if (!$apps) {
-    if ($global) { Stop-ScoopExecution -Message 'scoop update: --global option is invalid when <app> is not specified.' -ExitCode 2 }
-    if (!$useCache) { Stop-ScoopExecution -Message 'scoop update: --no-cache option is invalid when <app> is not specified.' -ExitCode 2 }
+if (!$Applications) {
+    if ($Global) { Stop-ScoopExecution -Message 'scoop update: --global option is invalid when <APP> is not specified.' -ExitCode 2 }
+    if (!$UseCache) { Stop-ScoopExecution -Message 'scoop update: --no-cache option is invalid when <APP> is not specified.' -ExitCode 2 }
 
     Update-Scoop
 } else {
-    if ($global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed apps' -ExitCode 4 }
+    if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
     if (is_scoop_outdated) { Update-Scoop }
+
     $outdatedApplications = @()
-    $applicationsParam = $apps
+    $failedApplications = @()
+    $applicationsParam = $Applications # Original users request
 
     if ($applicationsParam -eq '*') {
-        $apps = applist (installed_apps $false) $false
-        if ($global) { $apps += applist (installed_apps $true) $true }
+        $Applications = applist (installed_apps $false) $false
+        if ($Global) { $Applications += applist (installed_apps $true) $true }
     } else {
-        $apps = Confirm-InstallationStatus $applicationsParam -Global:$global
+        $Applications = Confirm-InstallationStatus $applicationsParam -Global:$Global
     }
 
-    if ($apps) {
-        foreach ($_ in $apps) {
+    if ($Applications) {
+        foreach ($_ in $Applications) {
             ($app, $global, $bb) = $_
             $status = app_status $app $global
             $bb = $status.bucket
@@ -80,21 +97,21 @@ if (!$apps) {
 
     foreach ($out in $outdatedApplications) {
         try {
-            Update-App -App $out[0] -Global:$out[1] -Suggested @{ } -Quiet:$quiet -Independent:$independent -SkipCache:(!$useCache) -SkipHashCheck:(!$checkHash)
+            Update-App -App $out[0] -Global:$out[1] -Suggested @{ } -Quiet:$Quiet -Independent:$Independent -SkipCache:(!$UseCache) -SkipHashCheck:(!$CheckHash)
         } catch {
-            ++$problems
-
-            $title, $body = $_.Exception.Message -split '\|-'
-            if (!$body) { $body = $title }
-            Write-UserMessage -Message $body -Err
+            ++$Problems
+            $failedApplications += $out[0]
             debug $_.InvocationInfo
-            if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $out[0] -Bucket $out[2] -Title $title -Body $body }
-
-            continue
+            New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $out[0] -Bucket $out[2]
         }
     }
 }
 
-if ($problems -gt 0) { $exitCode = 10 + $problems }
+if ($failedApplications) {
+    $pl = pluralize $failedApplications.Count 'This application' 'These applications'
+    Write-UserMessage -Message "$pl failed to update: $($failedApplications -join ', ')" -Err
+}
 
-exit $exitCode
+if ($Problems -gt 0) { $ExitCode = 10 + $Problems }
+
+exit $ExitCode

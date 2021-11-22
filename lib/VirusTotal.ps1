@@ -1,5 +1,13 @@
-'core', 'Helpers', 'manifest' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 $VT_API_KEY = get_config 'virustotal_api_key'
@@ -34,7 +42,7 @@ function Get-VirusTotalResult {
     $detectionUrl = "https://www.virustotal.com/#/file/$hash/detection"
 
     $wc = New-Object System.Net.Webclient
-    $wc.Headers.Add('User-Agent', (Get-UserAgent))
+    $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
     $wc.Headers.Add('x-apikey', $VT_API_KEY)
 
     try {

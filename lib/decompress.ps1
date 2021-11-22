@@ -1,6 +1,11 @@
-# TODO: Core import is messing up with download progress
-'Helpers' | ForEach-Object { #, 'core' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 #region helpers
@@ -40,11 +45,9 @@ function Test-7zipRequirement {
 function Test-LessmsiRequirement {
     <#
     .SYNOPSIS
-        Test if file or url requires lessmsi to be installed.
+        Test if url requires lessmsi to be installed.
     .PARAMETER URL
         Specifies the string representing URL.
-    .PARAMETER File
-        Specifies the filename.
     #>
     [CmdletBinding()]
     [OutputType([Boolean])]
@@ -56,7 +59,7 @@ function Test-LessmsiRequirement {
 
     if ($null -eq $URL) { return $false }
 
-    if (get_config 'MSIEXTRACT_USE_LESSMSI' $false) {
+    if (get_config 'MSIEXTRACT_USE_LESSMSI' $true) {
         return ($URL | Where-Object { $_ -match '\.msi$' }).Count -gt 0
     } else {
         return $false
@@ -68,10 +71,13 @@ function Test-ZstdRequirement {
     [OutputType([Boolean])]
     param (
         [Parameter(Mandatory, ParameterSetName = 'URL')]
+        [AllowNull()]
         [String[]] $URL,
         [Parameter(Mandatory, ParameterSetName = 'File')]
         [String] $File
     )
+
+    if (!$File -and ($null -eq $URL)) { return $false }
 
     if ($URL) {
         return ($URL | Where-Object { Test-ZstdRequirement -File $_ }).Count -gt 0
@@ -81,7 +87,7 @@ function Test-ZstdRequirement {
 }
 
 function _decompressErrorPrompt($path, $log) {
-    return @("Decompress error|-Failed to extract files from $path.", "Log file:", "  $(friendly_path $log)") -join "`n"
+    return @("Decompress error|-Failed to extract files from $path.", 'Log file:', "  $(friendly_path $log)") -join "`n"
 }
 #endregion helpers
 
@@ -212,7 +218,7 @@ function Expand-MsiArchive {
             $DestinationPath = Join-Path $DestinationPath '_tmp'
         }
 
-        if ((get_config 'MSIEXTRACT_USE_LESSMSI' $false)) {
+        if ((get_config 'MSIEXTRACT_USE_LESSMSI' $true)) {
             $msiPath = Get-HelperPath -Helper 'Lessmsi'
             $argList = @('x', "`"$Path`"", "`"$DestinationPath\\`"")
         } else {

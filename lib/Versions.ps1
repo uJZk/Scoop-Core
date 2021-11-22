@@ -1,5 +1,12 @@
-'core', 'Helpers', 'manifest' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function Get-LatestVersion {
@@ -88,7 +95,7 @@ function Select-CurrentVersion {
         $appPath = appdir $AppName $Global
 
         $currentPath = Join-Path $appPath 'current'
-        if (Test-Path $currentPath -PathType 'Container') {
+        if (Test-Path -LiteralPath $currentPath -PathType 'Container') {
             $currentVersion = (installed_manifest $AppName 'current' $Global).version
             # Get version from link target in case of nightly
             if ($currentVersion -eq 'nightly') { $currentVersion = ((Get-Item $currentPath).Target | Get-Item).BaseName }
@@ -131,7 +138,7 @@ function Compare-Version {
     )
 
     process {
-        # Use '+' sign as post-release, see https://github.com/lukesampson/scoop/pull/3721#issuecomment-553718093
+        # Use '+' sign as post-release, see https://github.com/ScoopInstaller/Scoop/pull/3721#issuecomment-553718093
         $ReferenceVersion, $DifferenceVersion = @($ReferenceVersion, $DifferenceVersion) -replace '\+', '-'
 
         # Return 0 if versions are strictly equal
@@ -210,6 +217,53 @@ function Split-Version {
         $Version = $Version -replace '[a-zA-Z]+', "$Delimiter$&$Delimiter"
 
         return ($Version -split [Regex]::Escape($Delimiter) -ne '' | ForEach-Object { if ($_ -match '^\d+$') { [Long] $_ } else { $_ } })
+    }
+}
+
+function Clear-InstalledVersion {
+    <#
+    .SYNOPSIS
+        Remove old/not active versions of installed application.
+    .PARAMETER Application
+        Specifies the name of installed application to be cleaned.
+    .PARAMETER Global
+        Specifies to clean globally installed application.
+    .PARAMETER BeVerbose
+        Specifies to be verbose.
+    .PARAMETER Cache
+        Specifies to remove the download cache. Keep the currently active version files.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline, ValueFromPipelineByPropertyName)]
+        [String] $Application,
+        [Switch] $Global,
+        [Switch] $BeVerbose,
+        [Switch] $Cache
+    )
+
+    process {
+        $currentVersion = Select-CurrentVersion -AppName $Application -Global:$Global
+        $versions = Get-InstalledVersion -AppName $Application -Global:$Global | Where-Object { $_ -ne $currentVersion }
+
+        if (!$versions) {
+            if ($BeVerbose) { Write-UserMessage -Message "$Application is already clean" -Success }
+            return
+        }
+
+        Write-Host "Removing ${Application}:" -ForegroundColor 'Yellow' -NoNewline
+
+        if ($Cache) { Join-Path $SCOOP_CACHE_DIRECTORY "$Application#*" | Remove-Item -Exclude "$Application#$currentVersion#*" }
+
+        foreach ($ver in $versions) {
+            Write-Host " $ver" -NoNewline
+            $dir = versiondir $Application $ver $Global
+            # Unlink all potential old link before doing recursive Remove-Item
+            unlink_persist_data $dir
+            Remove-Item $dir -ErrorAction 'Stop' -Recurse -Force
+        }
+
+        Write-Host ''
     }
 }
 

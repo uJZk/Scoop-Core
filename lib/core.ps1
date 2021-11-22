@@ -1,5 +1,11 @@
-'Helpers', 'commands' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('Helpers', 'New-IssuePrompt'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 # Such format is need to prevent automatic conversion of JSON date https://github.com/Ash258/Scoop-Core/issues/26
@@ -39,8 +45,28 @@ function Optimize-SecurityProtocol {
     }
 }
 
+# Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Windows NT 10.0; Win64; x64; Core)
+# Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Linux; Linux 5.8.0-1032-raspi #35-Ubuntu SMP PREEMPT Wed Jul 14 10:51:21 UTC 2021;)
 function Get-UserAgent {
-    return "Scoop/1.0 (+http://scoop.sh/) PowerShell/$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor) (Windows NT $([System.Environment]::OSVersion.Version.Major).$([System.Environment]::OSVersion.Version.Minor); $(if($env:PROCESSOR_ARCHITECTURE -eq 'AMD64'){'Win64; x64; '})$(if($env:PROCESSOR_ARCHITEW6432 -eq 'AMD64'){'WOW64; '})$PSEdition)"
+    $shovel = 'Shovel/1.0 (+https://shovel.ash258.com)'
+    $powershellVersion = "PowerShell/$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
+    $system = "Windows NT $([System.Environment]::OSVersion.Version)"
+    $arch = ''
+
+    switch ($env:PROCESSOR_ARCHITECTURE) {
+        'AMD64' { $arch = 'Win64; x64;' }
+    }
+
+    if (Test-IsUnix) {
+        $system = Invoke-SystemComSpecCommand -Unix 'uname -s'
+        $arch = Invoke-SystemComSpecCommand -Unix 'uname -srv'
+        $arch = "$arch;"
+    }
+
+    $useragent = "$shovel $powershellVersion ($system; $arch)"
+    # debug $useragent
+
+    return $useragent
 }
 
 function Show-DeprecatedWarning {
@@ -83,9 +109,7 @@ function Invoke-SystemComSpecCommand {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
         [String] $Windows,
-        [Parameter(Mandatory)]
         [String] $Unix
     )
 
@@ -98,10 +122,30 @@ function Invoke-SystemComSpecCommand {
             $parameters = @('/d', '/c', $Windows)
         }
 
+        if (!$Windows -and !$Unix) { throw 'No command provided' }
+
         $debugShell = "& ""$shell"" $($parameters -join ' ')"
         debug $debugShell
 
         & "$shell" @parameters
+    }
+}
+
+function Test-IsArmArchitecture {
+    <#
+    .SYNOPSIS
+        Custom check to identify arm based devices.
+    #>
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param()
+
+    process {
+        if (Test-IsUnix) {
+            return (Invoke-SystemComSpecCommand -Unix 'uname -m') -like 'aarch*'
+        } else {
+            return $env:PROCESSOR_IDENTIFIER -like 'ARMv*'
+        }
     }
 }
 
@@ -235,9 +279,9 @@ function debug($obj) {
         Write-Host " -> $($MyInvocation.PSCommandPath):$($MyInvocation.ScriptLineNumber):$($MyInvocation.OffsetInLine)" -ForegroundColor 'DarkGray'
         $msg | Where-Object { ![String]::IsNullOrWhiteSpace($_) } |
             Select-Object -Skip 2 | # Skip headers
-                ForEach-Object {
-                    Write-Host "$prefix $param.$($_)" -ForegroundColor 'DarkCyan'
-                }
+            ForEach-Object {
+                Write-Host "$prefix $param.$($_)" -ForegroundColor 'DarkCyan'
+            }
     } else {
         Write-Host "$prefix $param = $($msg.Trim())" -ForegroundColor 'DarkCyan' -NoNewline
         Write-Host " -> $($MyInvocation.PSCommandPath):$($MyInvocation.ScriptLineNumber):$($MyInvocation.OffsetInLine)" -ForegroundColor 'DarkGray'
@@ -309,14 +353,20 @@ function Get-AppFilePath {
         [String] $File
     )
 
-    # TODO: Support NO_JUNCTION
     # Normal path to file
-    $path = versiondir $App 'current' $false | Join-Path -ChildPath $File
-    if (Test-Path $path) { return $path }
+    $path = versiondir $App (Select-CurrentVersion -AppName $App) $false | Join-Path -ChildPath $File
+    if (Test-Path -LiteralPath $path -PathType 'Leaf') { return $path }
 
     # Global path to file
-    $path = versiondir $App 'current' $true | Join-Path -ChildPath $File
-    if (Test-Path $path) { return $path }
+    $path = versiondir $App (Select-CurrentVersion -AppName $App -Global) $true | Join-Path -ChildPath $File
+    if (Test-Path -LiteralPath $path -PathType 'Leaf') { return $path }
+
+    # Try path
+    $path = Get-Command -Name $File -ErrorAction 'SilentlyContinue'
+    if ($path -and (Test-Path -LiteralPath $path.Source -PathType 'Leaf')) {
+        Write-UserMessage "Application '$App' is not installed via Scoop. Trying to use '$($path.Source)'" -Warning
+        return $path
+    }
 
     # Not found
     return $null
@@ -406,45 +456,6 @@ function Test-Aria2Enabled {
 
     process { return (Test-HelperInstalled -Helper 'Aria2') -and (get_config 'aria2-enabled' $true) }
 }
-
-function app_status($app, $global) {
-    $status = @{ }
-    $status.installed = (installed $app $global)
-    $status.version = Select-CurrentVersion -AppName $app -Global:$global
-    $status.latest_version = $status.version
-
-    $install_info = install_info $app $status.version $global
-
-    $status.failed = (!$install_info -or !$status.version)
-    $status.hold = ($install_info.hold -eq $true)
-
-    $manifest = manifest $app $install_info.bucket $install_info.url
-    $status.bucket = $install_info.bucket
-    $status.removed = (!$manifest)
-    if ($manifest.version) {
-        $status.latest_version = $manifest.version
-    }
-
-    $status.outdated = $false
-    if ($status.version -and $status.latest_version) {
-        $status.outdated = (Compare-Version -ReferenceVersion $status.version -DifferenceVersion $status.latest_version) -ne 0
-    }
-
-    $status.missing_deps = @()
-    # TODO: Eliminate
-    . (Join-Path $PSScriptRoot 'depends.ps1')
-    $deps = @(runtime_deps $manifest) | Where-Object {
-        $app, $bucket, $null = parse_app $_
-        return !(installed $app)
-    }
-
-    if ($deps) { $status.missing_deps += , $deps }
-
-    return $status
-}
-
-# TODO: YML
-function appname_from_url($url) { return (Split-Path $url -Leaf) -replace '\.json$' }
 
 # paths
 function fname($path) { return Split-Path $path -Leaf }
@@ -611,11 +622,12 @@ function Invoke-ExternalCommand {
 
 function dl($url, $to) {
     $wc = New-Object System.Net.Webclient
-    $wc.headers.add('Referer', (strip_filename $url))
-    $wc.Headers.Add('User-Agent', (Get-UserAgent))
-    $wc.downloadFile($url, $to)
+    $wc.Headers.Add('Referer', (strip_filename $url))
+    $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
+    $wc.DownloadFile($url, $to)
 }
 
+# TODO: Unix
 function env($name, $global, $val = '__get') {
     $target = if ($global) { 'Machine' } else { 'User' }
     if ($val -eq '__get') {
@@ -739,8 +751,12 @@ function shim($path, $global, $name, $arg) {
 
     if ($path -match '\.(exe|com)$') {
         # for programs with no awareness of any shell
+        $executableName = if (Test-IsArmArchitecture) { 'shim.arm64.exe' } else { 'shim.exe' }
         # TODO: Use relative path from this file
-        versiondir 'scoop' 'current' | Join-Path -ChildPath 'supporting\shimexe\bin\shim.exe' | Copy-Item -Destination "$shim.exe" -Force
+        $shimExePath = versiondir 'scoop' 'current' | Join-Path -ChildPath "supporting\shimexe\bin\$executableName"
+
+        Copy-Item -LiteralPath $shimExePath -Destination "$shim.exe" -Force
+
         $result = @("path = $resolved_path")
         if ($arg) { $result += "args = $arg" }
 
@@ -778,6 +794,7 @@ function search_in_path($target) {
     }
 }
 
+# TODO: Unix
 function ensure_in_path($dir, $global) {
     $path = env 'PATH' $global
     if ($path -notmatch [System.Text.RegularExpressions.Regex]::Escape($dir)) {
@@ -796,54 +813,9 @@ function ensure_architecture($architecture_opt) {
     switch ($architecture_opt) {
         { @('64bit', '64', 'x64', 'amd64', 'x86_64', 'x86-64') -contains $_ } { return '64bit' }
         { @('32bit', '32', 'x86', 'i386', '386', 'i686') -contains $_ } { return '32bit' }
+        { @('arm64', 'aarch64', 'armv8') -contains $_ } { return 'arm64' }
         default { throw [System.ArgumentException] "Invalid architecture: '$architecture_opt'" }
     }
-}
-
-function Confirm-InstallationStatus {
-    <#
-    .SYNOPSIS
-        Get status of specific applications.
-        Returns array of 3 item arrays (appliation name, globally installed, bucket name)
-    .PARAMETER Apps
-        Specifies the array of applications to be evalueated.
-    .PARAMETER Global
-        Specifies to check globally installed applications.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [String[]] $Apps,
-        [Switch] $Global
-    )
-    $Global | Out-Null # PowerShell/PSScriptAnalyzer#1472
-    $installed = @()
-
-    $Apps | Select-Object -Unique | Where-Object -Property 'Name' -NE -Value 'scoop' | ForEach-Object {
-        $app, $null, $null = parse_app $_
-        $buc = (app_status $app $Global).bucket
-        if ($Global) {
-            if (installed $app $true) {
-                $installed += , @($app, $true, $buc)
-            } elseif (installed $app $false) {
-                Write-UserMessage -Message "'$app' isn't installed globally, but it is installed for your account." -Err
-                Write-UserMessage -Message 'Try again without the --global (or -g) flag instead.' -Warning
-            } else {
-                Write-UserMessage -Message "'$app' isn't installed." -Err
-            }
-        } else {
-            if (installed $app $false) {
-                $installed += , @($app, $false, $buc)
-            } elseif (installed $app $true) {
-                Write-UserMessage -Message "'$app' isn't installed for your account, but it is installed globally." -Err
-                Write-UserMessage -Message 'Try again with the --global (or -g) flag instead.' -Warning
-            } else {
-                Write-UserMessage -Message "'$app' isn't installed." -Err
-            }
-        }
-    }
-
-    return , $installed
 }
 
 function strip_path($orig_path, $dir) {
@@ -928,95 +900,6 @@ function show_app($app, $bucket, $version) {
     return $app
 }
 
-function last_scoop_update() {
-    $lastUpdate = Invoke-ScoopCommand 'config' @{ 'name' = 'lastupdate' }
-
-    if ($null -ne $lastUpdate) {
-        try {
-            $lastUpdate = Get-Date ($lastUpdate.Substring(4))
-        } catch {
-            Write-UserMessage -Message 'Config: Incorrect update date format' -Info
-            $lastUpdate = $null
-        }
-    }
-
-    return $lastUpdate
-}
-
-function is_scoop_outdated() {
-    $lastUp = last_scoop_update
-    $now = Get-Date
-    $res = $true
-
-    if ($null -eq $lastUp) {
-        Invoke-ScoopCommand 'config' @{ 'name' = 'lastupdate'; 'value' = ($now.ToString($UPDATE_DATE_FORMAT)) } | Out-Null
-    } else {
-        $res = $lastUp.AddHours(3) -lt $now.ToLocalTime()
-    }
-
-    return $res
-}
-
-function Invoke-VariableSubstitution {
-    <#
-    .SYNOPSIS
-        Substitute (find and replace) provided parameters in provided entity.
-    .PARAMETER Entity
-        Specifies the entity to be substituted (searched in).
-    .PARAMETER Substitutes
-        Specifies the hashtable providing name and value pairs for "find and replace".
-        Hashtable keys should start with $ (dollar sign). Curly bracket variable syntax will be substituted automatically.
-    .PARAMETER EscapeRegularExpression
-        Specifies to escape regular expressions before replacing values.
-    #>
-    [CmdletBinding()]
-    param(
-        [AllowEmptyCollection()]
-        [AllowNull()]
-        $Entity,
-        [Parameter(Mandatory)]
-        [Alias('Parameters')]
-        [HashTable] $Substitutes,
-        [Switch] $EscapeRegularExpression
-    )
-
-    process {
-        $EscapeRegularExpression | Out-Null # PowerShell/PSScriptAnalyzer#1472
-        $newEntity = $Entity
-
-        if ($null -ne $newEntity) {
-            switch ($newEntity.GetType().Name) {
-                'String' {
-                    $Substitutes.GetEnumerator() | ForEach-Object {
-                        $value = if (($EscapeRegularExpression -eq $false) -or ($null -eq $_.Value)) { $_.Value } else { [Regex]::Escape($_.Value) }
-                        $curly = '${' + $_.Name.TrimStart('$') + '}'
-
-                        $newEntity = $newEntity.Replace($curly, $value)
-                        $newEntity = $newEntity.Replace($_.Name, $value)
-                    }
-                }
-                'Object[]' {
-                    $newEntity = $newEntity | ForEach-Object { Invoke-VariableSubstitution -Entity $_ -Substitutes $Substitutes -EscapeRegularExpression:$regexEscape }
-                }
-                'PSCustomObject' {
-                    $newentity.PSObject.Properties | ForEach-Object { $_.Value = Invoke-VariableSubstitution -Entity $_ -Substitutes $Substitutes -EscapeRegularExpression:$regexEscape }
-                }
-                default {
-                    # This is not needed, but to cover all possible use cases explicitly
-                    $newEntity = $newEntity
-                }
-            }
-        }
-
-        return $newEntity
-    }
-}
-
-# TODO: Deprecate
-function substitute($entity, [Hashtable] $params, [Bool]$regexEscape = $false) {
-    return Invoke-VariableSubstitution -Entity $entity -Substitutes $params -EscapeRegularExpression:$regexEscape
-}
-
 function format_hash([String] $hash) {
     # Convert base64 encoded hash values
     if ($hash -match '^(?:[A-Za-z\d+\/]{4})*(?:[A-Za-z\d+\/]{2}==|[A-Za-z\d+\/]{3}=|[A-Za-z\d+\/]{4})$') {
@@ -1097,12 +980,28 @@ function handle_special_urls($url) {
     return $url
 }
 
-#region Deprecated
-function reset_aliases() {
-    Show-DeprecatedWarning $MyInvocation 'Reset-Alias'
-    Reset-Alias
+function Resolve-ArchitectureParameter {
+    [CmdletBinding()]
+    param([String[]] $Architecture)
+
+    process {
+        $arch = default_architecture
+
+        foreach ($a in $Architecture) {
+            if ($null -eq $a) { continue }
+
+            try {
+                $arch = ensure_architecture $a
+            } catch {
+                Write-UserMessage -Warning -Message "'$a' is not a valid architecture. Detecting default system architecture"
+            }
+        }
+
+        return $arch
+    }
 }
 
+#region Deprecated
 function file_path($app, $file) {
     Show-DeprecatedWarning $MyInvocation 'Get-AppFilePath'
     return Get-AppFilePath -App $app -File $file
@@ -1127,12 +1026,17 @@ function fullpath($path) {
 #       for all communication with api.github.com
 Optimize-SecurityProtocol
 
+$SHOVEL_USERAGENT = Get-UserAgent
+
 # TODO: Drop
 $c = get_config 'rootPath'
 if ($c) {
     Write-UserMessage -Message 'Configuration option ''rootPath'' is deprecated. Configure ''SCOOP'' environment variable instead' -Err
     if (!$env:SCOOP) { $env:SCOOP = $c }
 }
+
+# All supported architectures
+$SHOVEL_SUPPORTED_ARCHITECTURES = @('64bit', '32bit', 'arm64')
 
 # Path gluing has to remain in these global variables to not fail in case user do not have some environment configured (most likely linux case)
 # Scoop root directory
@@ -1141,12 +1045,22 @@ $SCOOP_ROOT_DIRECTORY = $env:SCOOP, "$env:USERPROFILE\scoop" | Where-Object { -n
 # Scoop global apps directory
 $SCOOP_GLOBAL_ROOT_DIRECTORY = $env:SCOOP_GLOBAL, "$env:ProgramData\scoop" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
 
+# Directory for local buckets
+$SCOOP_BUCKETS_DIRECTORY = Join-Path $SCOOP_ROOT_DIRECTORY 'buckets'
+
 # Scoop cache directory
 # Note: Setting the SCOOP_CACHE environment variable to use a shared directory
 #       is experimental and untested. There may be concurrency issues when
 #       multiple users write and access cached files at the same time.
 #       Use at your own risk.
 $SCOOP_CACHE_DIRECTORY = $env:SCOOP_CACHE, "$SCOOP_ROOT_DIRECTORY\cache" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
+
+# Scoop directory for powershell modules installtation
+$SCOOP_MODULE_DIRECTORY = Join-Path $SCOOP_ROOT_DIRECTORY 'modules'
+$SCOOP_GLOBAL_MODULE_DIRECTORY = Join-Path $SCOOP_GLOBAL_ROOT_DIRECTORY 'modules'
+
+# Directory for downloaded manifests (mainly)
+$SHOVEL_GENERAL_MANIFESTS_DIRECTORY = Join-Path $SCOOP_ROOT_DIRECTORY 'manifests'
 
 # Load Scoop config
 $configHome = $env:XDG_CONFIG_HOME, "$env:USERPROFILE\.config" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
@@ -1159,6 +1073,8 @@ $globaldir = $SCOOP_GLOBAL_ROOT_DIRECTORY
 $cachedir = $SCOOP_CACHE_DIRECTORY
 $scoopConfig = $SCOOP_CONFIGURATION
 $configFile = $SCOOP_CONFIGURATION_FILE
+$modulesdir = $SCOOP_MODULE_DIRECTORY
+$bucketsdir = $SCOOP_BUCKETS_DIRECTORY
 
 # Do not use the new native command parsing PowerShell/PowerShell#15239, Ash258/Scoop-Core#142
 $PSNativeCommandArgumentPassing = 'Legacy'

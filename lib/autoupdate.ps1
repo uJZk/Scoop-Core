@@ -1,5 +1,12 @@
-'core', 'json', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('json', 'ConvertToPrettyJson')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function find_hash_in_rdf([String] $url, [String] $basename) {
@@ -8,7 +15,7 @@ function find_hash_in_rdf([String] $url, [String] $basename) {
         # Download and parse RDF XML file
         $wc = New-Object System.Net.WebClient
         $wc.Headers.Add('Referer', (strip_filename $url))
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $data = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
         Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
@@ -39,7 +46,7 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
     try {
         $wc = New-Object System.Net.WebClient
         $wc.Headers.Add('Referer', (strip_filename $url))
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $hashfile = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
         Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
@@ -60,12 +67,17 @@ function find_hash_in_textfile([String] $url, [Hashtable] $substitutions, [Strin
     if ($hash.Length -eq 0) {
         $filenameRegex = "([a-fA-F\d]{32,128})[\x20\t]+.*`$basename(?:[\x20\t]+\d+)?"
         $filenameRegex = Invoke-VariableSubstitution -Entity $filenameRegex -Substitutes $substitutions -EscapeRegularExpression:$true
+        debug $filenameRegex
         if ($hashfile -match $filenameRegex) {
             $hash = $Matches[1]
         }
-        $metalinkRegex = '<hash[^>]+>([a-fA-F\d]{64})'
-        if ($hashfile -match $metalinkRegex) {
-            $hash = $Matches[1]
+
+        if ($hash.Length -eq 0) {
+            $metalinkRegex = '<hash[^>]+>([a-fA-F\d]{64})'
+            debug $metalinkRegex
+            if ($hashfile -match $metalinkRegex) {
+                $hash = $Matches[1]
+            }
         }
     }
 
@@ -78,7 +90,7 @@ function find_hash_in_json([String] $url, [Hashtable] $substitutions, [String] $
     try {
         $wc = New-Object System.Net.WebClient
         $wc.Headers.Add('Referer', (strip_filename $url))
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $json = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
         Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
@@ -100,7 +112,7 @@ function find_hash_in_xml([String] $url, [Hashtable] $substitutions, [String] $x
     try {
         $wc = New-Object System.Net.WebClient
         $wc.Headers.Add('Referer', (strip_filename $url))
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $xml = $wc.DownloadString($url)
     } catch [System.Net.WebException] {
         Write-UserMessage -Message $_, "URL $url is not valid" -Color 'DarkRed'
@@ -112,6 +124,8 @@ function find_hash_in_xml([String] $url, [Hashtable] $substitutions, [String] $x
 
     # Replace placeholders
     if ($substitutions) { $xpath = Invoke-VariableSubstitution -Entity $xpath -Substitutes $substitutions }
+
+    debug $xpath
 
     # Find all `significant namespace declarations` from the XML file
     $nsList = $xml.SelectNodes('//namespace::*[not(. = ../../namespace::*)]')
@@ -134,7 +148,7 @@ function find_hash_in_headers([String] $url) {
         $req = [System.Net.WebRequest]::Create($url)
         $req.Referer = (strip_filename $url)
         $req.AllowAutoRedirect = $false
-        $req.UserAgent = (Get-UserAgent)
+        $req.UserAgent = $SHOVEL_USERAGENT
         $req.Timeout = 2000
         $req.Method = 'HEAD'
         $res = $req.GetResponse()
@@ -257,6 +271,13 @@ function get_hash_for_app([String] $app, $config, [String] $version, [String] $u
         Write-Host ' to verify URL accessibility' -ForegroundColor 'Yellow'
         $request = [System.Net.WebRequest]::Create($url) # TODO: Consider spliting #/ from URL to prevent potential faulty response
         $request.AllowAutoRedirect = $true
+        if ($PSVersionTable.PSVersion.Major -lt 6) {
+            $request.UserAgent = $SHOVEL_USERAGENT
+            $request.Referer = strip_filename $url
+        } else {
+            $request.Headers.Add('Referer', (strip_filename $url))
+            $request.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
+        }
         try {
             $response = $request.GetResponse()
             $response.Close()
@@ -319,7 +340,7 @@ function update_manifest_prop([String] $prop, $json, [Hashtable] $substitutions)
 
     # check if there are architecture specific variants
     if ($json.architecture -and $json.autoupdate.architecture) {
-        $json.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
+        $json.architecture | Get-Member -MemberType 'NoteProperty' | ForEach-Object {
             $architecture = $_.Name
             if ($json.architecture.$architecture.$prop -and $json.autoupdate.architecture.$architecture.$prop) {
                 $json.architecture.$architecture.$prop = Invoke-VariableSubstitution -Entity (arch_specific $prop $json.autoupdate $architecture) -Substitutes $substitutions
@@ -391,7 +412,7 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
             throw "Could not update $app"
         }
     } else {
-        $json.architecture | Get-Member -MemberType NoteProperty | ForEach-Object {
+        $json.architecture | Get-Member -MemberType 'NoteProperty' | ForEach-Object {
             $valid = $true
             $architecture = $_.Name
 

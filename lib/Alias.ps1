@@ -1,5 +1,14 @@
-'core', 'commands', 'help', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('commands', 'Invoke-ScoopCommand'),
+    @('install', 'install_app')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 $ALIAS_CMD_ALIAS = 'alias'
@@ -112,12 +121,19 @@ function Get-ScoopAlias {
     $props = @((Get-AliasesFromConfig).PSObject.Properties | Where-Object -Property 'MemberType' -EQ -Value 'NoteProperty')
     if ($props.Count -eq 0) { $props = @() }
 
-    $props.GetEnumerator() | ForEach-Object {
-        $content = Get-Content (command_path $_.Name)
+    foreach ($prop in $props.GetEnumerator()) {
+        try {
+            $path = (command_path $prop.Name)
+        } catch {
+            Write-UserMessage -Err -Message $_.Exception.Message
+            continue
+        }
+        $content = Get-Content -LiteralPath $path -Encoding 'UTF8'
         $cmd = ($content | Select-Object -Skip 1).Trim()
-        $sum = (summary $content).Trim()
+        $sum = (summary $content)
+        if ($sum) { $sum = $sum.Trim() }
 
-        $aliases += New-Object psobject -Property @{ 'Name' = $_.Name; 'Summary' = $sum; 'Command' = $cmd }
+        $aliases += New-Object psobject -Property @{ 'Name' = $prop.Name; 'Summary' = $sum; 'Command' = $cmd }
     }
 
     if ($aliases.Count -eq 0) { Write-UserMessage -Message 'No aliases defined' -Warning }

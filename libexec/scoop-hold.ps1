@@ -1,48 +1,58 @@
-# Usage: scoop hold <apps> [options]
-# Summary: Hold an app to disable updates
+# Usage: scoop hold [<OPTIONS>] <APP>...
+# Summary: Hold an application(s) to disable updates.
+# Help: Application which is configured as held, cannot be updated, unless it is un-holded manually.
+#
 # Options:
 #   -h, --help                Show help for this command.
-#   -g, --global              Hold globally installed app.
+#   -g, --global              Hold globally installed application(s).
 
-'core', 'getopt', 'help', 'Helpers', 'Applications' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Applications', 'Get-InstalledApplicationInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
+$ExitCode = 0
+$Problems = 0
+$Options, $Applications, $_err = Resolve-GetOpt $args 'g' 'global'
 
-$opt, $apps, $err = getopt $args 'g' 'global'
-if ($err) { Stop-ScoopExecution -Message "scoop hold: $err" -ExitCode 2 }
-if (!$apps) { Stop-ScoopExecution -Message 'Parameter <apps> missing' -Usage (my_usage) }
+if ($_err) { Stop-ScoopExecution -Message "scoop hold: $_err" -ExitCode 2 }
+if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 
-$global = $opt.g -or $opt.global
+$Global = $Options.g -or $Options.global
 
-if ($global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed apps' -ExitCode 4 }
+if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed applications' -ExitCode 4 }
 
-$problems = 0
-$exitCode = 0
-foreach ($app in $apps) {
+foreach ($app in $Applications) {
     # Not at all installed
     if (!(installed $app)) {
-        Write-UserMessage -Message "'$app' is not installed." -Err
-        ++$problems
+        Write-UserMessage -Message "'$app' is not installed" -Err
+        ++$Problems
         continue
     }
 
     # Global required, but not installed globally
-    if ($global -and (!(installed $app $global))) {
+    if ($Global -and (!(installed $app $Global))) {
         Write-UserMessage -Message "'$app' not installed globally" -Err
-        ++$problems
+        ++$Problems
         continue
     }
 
     # Globally installed, but required locally
-    if (!$global -and ((installed $app $true))) {
+    if (!$Global -and ((installed $app $true))) {
         Write-UserMessage -Message "'$app' installed globally" -Err
-        ++$problems
+        ++$Problems
         continue
     }
 
-    $splat = @{ 'AppName' = $app; 'Global' = $global }
+    $splat = @{ 'AppName' = $app; 'Global' = $Global }
     $info = Get-InstalledApplicationInformation @splat
     $splat.Add('Property', 'hold')
     $splat.Add('InputObject', $info)
@@ -54,9 +64,9 @@ foreach ($app in $apps) {
     }
 
     Set-InstalledApplicationInformationPropertyValue @splat -Value $true -Force
-    Write-UserMessage -Message "$app is now held and cannot be updated anymore." -Success
+    Write-UserMessage -Message "$app is now held and cannot be updated anymore" -Success
 }
 
-if ($problems -gt 0) { $exitCode = 10 + $problems }
+if ($Problems -gt 0) { $ExitCode = 10 + $Problems }
 
-exit $exitCode
+exit $ExitCode

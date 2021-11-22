@@ -1,5 +1,16 @@
-'Helpers', 'autoupdate', 'buckets', 'decompress', 'manifest', 'ManifestHelpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('autoupdate', 'Invoke-Autoupdate'),
+    @('buckets', 'Get-KnownBucket'),
+    @('decompress', 'Expand-7zipArchive'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('ManifestHelpers', 'Test-Persistence')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
 
 function nightly_version($date, $quiet = $false) {
@@ -9,6 +20,23 @@ function nightly_version($date, $quiet = $false) {
     }
 
     return "nightly-$date_str"
+}
+
+function Deny-ArmInstallation {
+    param($Manifest, $Architecture)
+
+    process {
+        if (Test-IsArmArchitecture) {
+            if (($Architecture -eq 'arm64') -and !($Manifest.'architecture'.'arm64')) {
+                throw [ScoopException] "Manifest does not explicitly support 'arm64' architecture. Try to install with '--arch 32bit' or '--arch 64bit' to use Windows arm emulation."
+            }
+        } else {
+            if ($Architecture -eq 'arm64') {
+                if ($true -eq (get_config 'dbgBypassArmCheck' $false)) { return }
+                throw [ScoopException] "Installation of 'arm64' version is not supported on x86 based system"
+            }
+        }
+    }
 }
 
 function install_app($app, $architecture, $global, $suggested, $use_cache = $true, $check_hash = $true) {
@@ -34,6 +62,8 @@ function install_app($app, $architecture, $global, $suggested, $use_cache = $tru
     if (!(supports_architecture $manifest $architecture)) {
         throw [ScoopException] "'$app' does not support $architecture architecture" # TerminatingError thrown
     }
+
+    Deny-ArmInstallation -Manifest $manifest -Architecture $architecture
 
     $buc = if ($bucket) { " [$bucket]" } else { '' }
     Write-UserMessage -Message "Installing '$app' ($version) [$architecture]$buc"
@@ -65,6 +95,11 @@ function install_app($app, $architecture, $global, $suggested, $use_cache = $tru
     $current_dir = current_dir $dir # Save some lines in manifests
     $original_dir = $dir # Keep reference to real (not linked) directory
     $persist_dir = persistdir $app $global
+
+    # Suggest installing arm64
+    if ((Test-IsArmArchitecture) -and ($architecture -ne 'arm64') -and ($manifest.'architecture'.'arm64')) {
+        Write-UserMessage -Message 'Manifest explicitly supports arm64. Consider to install using arm64 version to achieve best compatibility/performance.' -Success
+    }
 
     # Download and extraction
     Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_download' -Architecture $architecture
@@ -139,7 +174,7 @@ function dl_with_cache($app, $version, $url, $to, $cookies = $null, $use_cache =
     $cached = cache_path $app $version $url
 
     if (!(Test-Path $cached) -or !$use_cache) {
-        ensure $cachedir | Out-Null
+        Confirm-DirectoryExistence $SCOOP_CACHE_DIRECTORY | Out-Null
         do_dl $url "$cached.download" $cookies
         Move-Item "$cached.download" $cached -Force
     } else { Write-UserMessage -Message "Loading $(url_remote_filename $url) from cache" }
@@ -238,7 +273,7 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
     # aria2 options
     $options = @(
         "--input-file='$urlstxt'"
-        "--user-agent='$(Get-UserAgent)'"
+        "--user-agent='$SHOVEL_USERAGENT'"
         '--allow-overwrite=true'
         '--auto-file-renaming=false'
         "--retry-wait=$(get_config 'aria2-retry-wait' 2)"
@@ -294,7 +329,7 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
             if (($url -notlike '*sourceforge.net*') -and ($url -notlike '*portableapps.com*')) {
                 $urlstxt_content += "    referer=$(strip_filename $url)`n"
             }
-            $urlstxt_content += "    dir=$cachedir`n"
+            $urlstxt_content += "    dir=$SCOOP_CACHE_DIRECTORY`n"
             $urlstxt_content += "    out=$($data.$url.cachename)`n"
         } else {
             Write-Host 'Loading ' -NoNewline
@@ -394,7 +429,7 @@ function dl($url, $to, $cookies, $progress) {
     $reqUrl = ($url -split '#')[0]
     $wreq = [System.Net.WebRequest]::Create($reqUrl)
     if ($wreq -is [System.Net.HttpWebRequest]) {
-        $wreq.UserAgent = Get-UserAgent
+        $wreq.UserAgent = $SHOVEL_USERAGENT
         # Do not send referer to sourceforge, portbleapps
         if (($url -notlike '*sourceforge.net*') -and ($url -notlike '*portableapps.com*')) {
             $wreq.Referer = strip_filename $url
@@ -565,6 +600,12 @@ function dl_urls($app, $version, $manifest, $bucket, $architecture, $dir, $use_c
     $extract_dirs = @(extract_dir $manifest $architecture)
     $extract_tos = @(extract_to $manifest $architecture)
     $extracted = 0
+
+    try {
+        Confirm-DirectoryExistence -LiteralPath $SCOOP_CACHE_DIRECTORY | Out-Null
+    } catch {
+        throw [ScoopException] "Could not create cache directory: '$SCOOP_CACHE_DIRECTORY'"
+    }
 
     # Download first
     if (Test-Aria2Enabled) {
