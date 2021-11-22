@@ -19,11 +19,17 @@
 #    'scoop utils checkhashes manifest*' --bucketdir ..\..\testbucket\bucket => Check all manifests matching manifest* in provided directory
 #    'scoop utils auto-pr --additional-options -Upstream "user/repo:branch" -Skipcheckver -Push' => Execute auto-pr utility with specific upstream string
 
-'core', 'getopt', 'help', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
-
-Reset-Alias
 
 $getopt = $args
 $AdditionalArgs = @()
@@ -37,7 +43,7 @@ if ($args -contains '--additional-options') {
 
 #region Parameter handling/validation
 $ExitCode = 0
-$Options, $Rem, $_err = getopt $getopt 'b:' 'bucketdir='
+$Options, $Rem, $_err = Resolve-GetOpt $getopt 'b:' 'bucketdir='
 
 if ($_err) { Stop-ScoopExecution -Message "scoop utils: $_err" -ExitCode 2 }
 

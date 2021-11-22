@@ -2,15 +2,40 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- Respect `NO_JUNCTIONS` config when resolving helper utilities
+    - Fallback to executable from PATH when the utility is not installed via scoop.
+
+### [0.6.5-pre1]
+
+- **scoop-config**:
+    - Consider lessmsi as default for msi extraction
+    - Add config option `dbgBypassArmCheck`
+        - Installation will not fail when installing arm64 version on x86.
+        - For debugging purpose, to simulate the installation of arm64 version
+- Internal modules/libs are loaded only when not loaded already
+- **scoop-install**: Fix independent installations
+- Initial support for manipulation with `arm64` based manifests
+- **Update**: Application will not be updated, if manifest does not support architecture used for installation
+- **Checkver**: URL ping behaviour equality with `dl` function
+- Add `Base` bucket to known
+    - It will be automatically added when `update` command is executed
+- **scoop-checkup**: Do not suggest 7zip installation when `7ZIPEXTRACT_USE_EXTERNAL` is configured
+- **scoop-search**:
+    - Do not fail when parsing invalid local manifest
+    - Support `githubToken` config and `GITHUB_TOKEN` environment variable for Github API calls
 - **scoop-install**, **scoop-update**: Report failed installations/updates at the end of execution
 - **Schema**:
+    - Fix validation for curly bracket variables in autoupdate
     - Initial support for `arm64` architecture
     - Allow `$schema` property
 - **CI**:
+    - Files with multiple empty lines at the end now produce error
+    - `UTF8-Bom`, `UTF16 BE`, `UTF16 LE` files are prohibited
     - Support basic validation of yml typed manifests
     - Support validation of all archived manifests
 - **scoop-cat**: Add `-f`, `--format` options
 - Adopt new resolve function for parameter passing
+    - **scoop-search**
     - **scoop-home**
     - **scoop-cat**
     - **scoop-download**

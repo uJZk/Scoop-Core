@@ -1,3 +1,13 @@
+@(
+    @('Helpers', 'New-IssuePrompt'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
+}
+
 # Convert objects to pretty json
 # Only needed until PowerShell ConvertTo-Json will be improved https://github.com/PowerShell/PowerShell/issues/2736
 # https://github.com/PowerShell/PowerShell/issues/2736 was fixed in pwsh
@@ -154,7 +164,7 @@ function normalize_values([psobject] $json) {
         # Recursively edit psobjects
         # If the values is psobjects, its not normalized
         # For example if manifest have architecture and it's architecture have array with single value it's not formatted.
-        # @see https://github.com/lukesampson/scoop/pull/2642#issue-220506263
+        # @see https://github.com/ScoopInstaller/Scoop/pull/2642#issue-220506263
         if ($_.Value -is [System.Management.Automation.PSCustomObject]) {
             $_.Value = normalize_values $_.Value
         }

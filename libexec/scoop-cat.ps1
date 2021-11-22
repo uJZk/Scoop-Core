@@ -5,13 +5,23 @@
 #   -h, --help                  Show help for this command.
 #   -f, --format <json|yaml>    Show manifest in specific format. Json will be considered as default when this parameter is not provided.
 
-'core', 'getopt', 'help', 'Helpers', 'install', 'manifest' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 $ExitCode = 0
 $Problems = 0
-$Options, $Applications, $_err = getopt $args 'f:' 'format='
+$Options, $Applications, $_err = Resolve-GetOpt $args 'f:' 'format='
 
 if ($_err) { Stop-ScoopExecution -Message "scoop cat: $_err" -ExitCode 2 }
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
@@ -25,11 +35,8 @@ foreach ($app in $Applications) {
         $resolved = Resolve-ManifestInformation -ApplicationQuery $app
     } catch {
         ++$Problems
-
-        $title, $body = $_.Exception.Message -split '\|-'
-        if (!$body) { $body = $title }
-        Write-UserMessage -Message $body -Err
         debug $_.InvocationInfo
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
 
         continue
     }

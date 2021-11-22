@@ -105,7 +105,7 @@ $checkverFormatBlock = {
         }
 
         # Only one github property and homepage is set to github repository
-        if (($checkver.PSObject.Properties.Name.Count -eq 1) -and $checkver.github -and ($checkver.github -eq $Manifest.homepage)) {
+        if (($checkver.PSObject.Properties.Name.Count -eq 1) -and $checkver.github -and ($checkver.github -eq $Manifest.homepage) -and ($Manifest.homepage -like 'https://github.com/*')) {
             _infoMes $name 'alone checkver.github -> checkver github string'
 
             $checkver = 'github'
@@ -179,6 +179,8 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     }
     #endregion Architecture properties sort
 
+    if ($manifest.'$schema') { $manifest.PSObject.Properties.Remove('$schema') }
+
     $newManifest = [PSCustomObject] @{ }
     # Add informational properties in special order ranked by usability into new object and remove from old object
     # Comment for maintainers has to be at first
@@ -188,7 +190,7 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     # License has to follow immediatelly after homepage. User most likely decided to install app after reading description or visiting homepage
     # Notes contains useful information for user. When they cat the manifest it has to be visible on top
     # Changelog is additional not required information
-    '$schema', '##', 'version', 'description', 'homepage', 'license', 'notes', 'changelog', 'suggest', 'depends' | ForEach-Object {
+    '$schema', '##', 'version', 'description', 'homepage', 'license', 'changelog', 'notes', 'suggest', 'depends' | ForEach-Object {
         $val = $manifest.$_
         if ($val) {
             $newManifest | Add-Member -MemberType 'NoteProperty' -Name $_ -Value $val

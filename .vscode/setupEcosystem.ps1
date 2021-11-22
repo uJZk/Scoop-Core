@@ -3,8 +3,9 @@ param($Folder, [Switch] $Https)
 
 $REPOSITORIES = @(
     @('Ash258/Scoop-Core', 'CORE'),
-    @('Ash258/GenericBucket', 'GenericBucket'),
-    @('Ash258/Scoop-GithubActions', 'GithubActions'),
+    @('shovel-org/GenericBucket', 'GenericBucket'),
+    @('shovel-org/GithubActions', 'GithubActions'),
+    @('shovel-org/Base', 'Base'),
     @('Ash258/Scoop-Dockers', 'Dockers'),
     @('Ash258/Scoop-Vagrants', 'Vagrants'),
     @('Ash258/Scoop-Ash258.git', 'Ash258'),
@@ -16,7 +17,7 @@ $REPOSITORIES = @(
     @('Ash258/Scoop-Shim.git', 'Shim'),
     @('ScoopInstaller/PHP.git', 'PHP', 'Ash258/Scoop-PHP.git'),
     @('ScoopInstaller/Main.git', 'Main', 'Ash258/Scoop-Main.git'),
-    @('lukesampson/scoop-extras.git', 'Extras', 'Ash258/Scoop-Extras.git'),
+    @('ScoopInstaller/Extras.git', 'Extras', 'Ash258/Scoop-Extras.git'),
     @('Ash258/GithubActionsBucketForTesting', 'GithubActionsBucketForTesting')
 )
 
@@ -26,7 +27,7 @@ if ($Https) { $GH = 'https://github.com/' }
 $ind = 0
 foreach ($repo in $REPOSITORIES) {
     ++$ind
-    Write-Progress -Activity 'Clonning' -Status $repo[0] -PercentComplete ($ind * (100 / $REPOSITORIES.Count))
+    Write-Progress -Id 1 -Activity 'Clonning' -Status $repo[0] -PercentComplete ($ind * (100 / $REPOSITORIES.Count))
     $origin = $targetname = $Ash = $target = $null
 
     $origin = $GH + $repo[0]

@@ -33,14 +33,23 @@
 #   -h, --help      Show help for this command.
 #   -v, --verbose   Show alias description and table headers (works only for 'list').
 
-'core', 'getopt', 'help', 'Helpers', 'Alias' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Alias', 'Get-ScoopAliasPath')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 # TODO: Add --global - Ash258/Scoop-Core#5
 
 $ExitCode = 0
-$Options, $Alias, $_err = getopt $args 'v' 'verbose'
+$Options, $Alias, $_err = Resolve-GetOpt $args 'v' 'verbose'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop alias: $_err" -ExitCode 2 }
 

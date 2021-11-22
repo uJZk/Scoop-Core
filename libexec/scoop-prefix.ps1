@@ -4,14 +4,22 @@
 # Options:
 #   -h, --help      Show help for this command.
 
-'core', 'buckets', 'getopt', 'help', 'Helpers', 'manifest' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('buckets', 'Get-KnownBucket'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
-
 $ExitCode = 0
-$Options, $Application, $_err = getopt $args
+$Options, $Application, $_err = Resolve-GetOpt $args
 
 if ($_err) { Stop-ScoopExecution -Message "scoop prefix: $_err" -ExitCode 2 }
 if (!$Application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }

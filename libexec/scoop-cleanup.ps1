@@ -9,15 +9,26 @@
 #   -g, --global       Perform cleanup on globally installed application(s). (Include them if '*' is used)
 #   -k, --cache        Remove outdated download cache. This will keep only the latest version cached.
 
-'core', 'buckets', 'getopt', 'help', 'Helpers', 'install', 'manifest', 'Versions' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('Applications', 'Get-InstalledApplicationInformation'),
+    @('buckets', 'Get-KnownBucket'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
-
-Reset-Alias
 
 $ExitCode = 0
 $Problems = 0
-$Options, $Applications, $_err = getopt $args 'gk' 'global', 'cache'
+$Options, $Applications, $_err = Resolve-GetOpt $args 'gk' 'global', 'cache'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop cleanup: $_err" -ExitCode 2 }
 

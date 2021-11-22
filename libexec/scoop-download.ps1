@@ -9,14 +9,22 @@
 #   -a, --arch <32bit|64bit>        Use the specified architecture.
 #   -b, --all-architectures         All available files across all architectures will be downloaded.
 
-'getopt', 'help', 'manifest', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
-Reset-Alias
-
 #region Parameter validation
-$opt, $application, $err = getopt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
+$opt, $application, $err = Resolve-GetOpt $args 'sba:u:' 'skip', 'all-architectures', 'arch=', 'utility='
 if ($err) { Stop-ScoopExecution -Message "scoop download: $err" -ExitCode 2 }
 
 $checkHash = -not ($opt.s -or $opt.skip)
@@ -34,17 +42,20 @@ if ($opt.b -or $opt.'all-architectures') { $Architecture = $SHOVEL_SUPPORTED_ARC
 $exitCode = 0
 $problems = 0
 
+try {
+    Confirm-DirectoryExistence -LiteralPath $SCOOP_CACHE_DIRECTORY | Out-Null
+} catch {
+    Stop-ScoopExecution -Message "Could not create cache directory: '$SCOOP_CACHE_DIRECTORY' ($($_.Exception.Message))"
+}
+
 foreach ($app in $application) {
     $resolved = $null
     try {
         $resolved = Resolve-ManifestInformation -ApplicationQuery $app
     } catch {
         ++$problems
-
-        $title, $body = $_.Exception.Message -split '\|-'
-        if (!$body) { $body = $title }
-        Write-UserMessage -Message $body -Err
         debug $_.InvocationInfo
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
 
         continue
     }
@@ -77,11 +88,8 @@ foreach ($app in $application) {
                         ++$problems
                     }
 
-                    $title, $body = $_.Exception.Message -split '\|-'
-                    if (!$body) { $body = $title }
-                    Write-UserMessage -Message $body -Err
                     debug $_.InvocationInfo
-                    if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                    New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                     continue
                 }
@@ -115,11 +123,8 @@ foreach ($app in $application) {
                             ++$problems
                         }
 
-                        $title, $body = $_.Exception.Message -split '\|-'
-                        if (!$body) { $body = $title }
-                        Write-UserMessage -Message $body -Err
                         debug $_.InvocationInfo
-                        if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $appName -Bucket $bucket -Title $title -Body $body }
+                        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
 
                         continue
                     }

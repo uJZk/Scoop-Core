@@ -11,11 +11,10 @@ Upgrade PowerShell: 'https://docs.microsoft.com/en-us/powershell/scripting/insta
     exit 1
 }
 
+# This simple import is fine as for the command this is entry. It is also desired to refresh all the variables/functions
 'core', 'buckets', 'Helpers', 'commands', 'Git' | ForEach-Object {
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
-
-Reset-Alias
 
 $ExitCode = 0
 
@@ -43,6 +42,7 @@ $commandHelp = !$scoopHelp -and $validCommand -and (($args.Contains('--help')) -
 if ($version) {
     Write-UserMessage -Output -Message @(
         "PowerShell version: $($PSVersionTable.PSVersion)"
+        "Useragent: $SHOVEL_USERAGENT"
         'Current Scoop (Shovel) version:'
     )
     Invoke-GitCmd -Command 'VersionLog' -Repository (versiondir 'scoop' 'current')

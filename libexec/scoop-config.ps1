@@ -34,7 +34,7 @@
 #       * An empty or unset value for proxy is equivalent to 'default' (with no username or password)
 #       * To bypass the system proxy and connect directly, use 'none' (with no username or password)
 #
-# default-architecture: 64bit|32bit
+# default-architecture: 64bit|32bit|arm64
 #   Allows to configure preferred architecture for application installation.
 #   If not specified, architecture is determined automatically.
 #
@@ -43,7 +43,7 @@
 #
 # MSIEXTRACT_USE_LESSMSI: $true|$false
 #   Prefer lessmsi utility over native msiexec for installation of msi based installers.
-#   This is preferred option and will be default in future.
+#   Lessmsi is preferred option. Default to $true as of 2021-10-16.
 #
 # INNOSETUP_USE_INNOEXTRACT: $true|$false
 #   Prefer innoextract utility over innounp for installation of innosetup based installers.
@@ -55,7 +55,7 @@
 # debug: $true|$false
 #   Additional output will be shown to identify possible source of problems.
 #
-# SCOOP_REPO: http://github.com/lukesampson/scoop
+# SCOOP_REPO: http://github.com/ScoopInstaller/Scoop
 #   Git repository containining scoop source code.
 #   This configuration is useful for custom tweaked forks.
 #
@@ -74,6 +74,9 @@
 # githubToken:
 #   GitHub API token used for checkver/autoupdate runs to prevent rate limiting.
 #   See: 'https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token'
+#
+# dbgBypassArmCheck: $true|$false
+#   Do not fail to install arm64 version on x86 platform.
 #
 # ARIA2 configuration
 # -------------------
@@ -101,16 +104,22 @@
 #   Array of additional aria2 options.
 #   See: 'https://aria2.github.io/manual/en/html/aria2c.html#options'
 
-'core', 'getopt', 'help', 'Helpers' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 # TODO: Add --global - Ash258/Scoop-Core#5
 
-Reset-Alias
-
 $ExitCode = 0
-$null, $Config, $_err = getopt $args
+$null, $Config, $_err = Resolve-GetOpt $args
 
 if ($_err) { Stop-ScoopExecution -Message "scoop config: $_err" -ExitCode 2 }
 if (!$Config) { $Config = @('show') }

@@ -15,17 +15,27 @@
 # Options:
 #   -h, --help      Show help for this command.
 
-'core', 'getopt', 'help', 'Helpers', 'install', 'manifest', 'shortcuts', 'Versions' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('shortcuts', 'rm_startmenu_shortcuts'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 # TODO: Add --global
 
-Reset-Alias
-
 $ExitCode = 0
 $Problems = 0
-$Options, $Applications, $_err = getopt $args
+$Options, $Applications, $_err = Resolve-GetOpt $args
 
 if ($_err) { Stop-ScoopExecution -Message "scoop reset: $_err" -ExitCode 2 }
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
@@ -34,7 +44,7 @@ if ($Applications -eq '*') {
     $Applications = @()
     foreach ($gl in $true, $false) {
         installed_apps $gl | ForEach-Object {
-            $Applications += , @($_, $true)
+            $Applications += , @($_, $gl)
         }
     }
 }
@@ -43,6 +53,7 @@ foreach ($a in $Applications) {
     ($app, $gl) = $a
 
     # TODO: Adopt Resolve-ManifestInformation ???
+    # Only name and version is relevant, manual parse should be enough
     $app, $bucket, $version = parse_app $app
 
     # Skip scoop
@@ -61,7 +72,7 @@ foreach ($a in $Applications) {
 
     $manifest = installed_manifest $app $version $gl
 
-    # When there is no manifest it is clear that aplication is not installed with this specific version
+    # When there is no manifest it is clear that application is not installed with this specific version
     if ($null -eq $manifest) {
         ++$Problems
         Write-UserMessage -Message "'$app ($version)' is not installed" -Err
@@ -76,7 +87,7 @@ foreach ($a in $Applications) {
 
     Write-UserMessage -Message "Resetting $app ($version)"
 
-    $dir = Resolve-Path (versiondir $app $version $gl)
+    $dir = versiondir $app $version $gl | Resolve-Path
     $original_dir = $dir
     $persist_dir = persistdir $app $gl
 

@@ -1,8 +1,15 @@
-'core', 'Helpers', 'autoupdate', 'buckets', 'json' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('autoupdate', 'Invoke-Autoupdate'),
+    @('buckets', 'Get-KnownBucket'),
+    @('json', 'ConvertToPrettyJson')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
+    }
 }
-
-Join-Path $PSScriptRoot '..\supporting\yaml\bin\powershell-yaml.psd1' | Import-Module -Prefix 'CloudBase' -Verbose:$false
 
 $ALLOWED_MANIFEST_EXTENSION = @('json', 'yaml', 'yml')
 $ALLOWED_MANIFEST_EXTENSION_REGEX = $ALLOWED_MANIFEST_EXTENSION -join '|'
@@ -33,6 +40,10 @@ function ConvertFrom-Manifest {
                 $result = ConvertFrom-Json -InputObject $content -ErrorAction 'Stop'
             }
             { $_ -in '.yaml', '.yml' } {
+                if (!(Get-Module -Name 'powershell-yaml')) {
+                    Join-Path $PSScriptRoot '..\supporting\yaml\bin\powershell-yaml.psd1' | Import-Module -Prefix 'CloudBase' -Verbose:$false
+                }
+
                 # Ugly hotfix to prevent ordering of properties and PSCustomObject
                 $result = ConvertFrom-CloudBaseYaml -Yaml $content -Ordered | ConvertTo-Json -Depth 100 | ConvertFrom-Json
             }
@@ -80,7 +91,12 @@ function ConvertTo-Manifest {
                 $content = $content -replace "`t", (' ' * 4)
             }
             { $_ -in 'yaml', 'yml' } {
+                if (!(Get-Module -Name 'powershell-yaml')) {
+                    Join-Path $PSScriptRoot '..\supporting\yaml\bin\powershell-yaml.psd1' | Import-Module -Prefix 'CloudBase' -Verbose:$false
+                }
+
                 $content = ConvertTo-CloudBaseYaml -Data $Manifest
+                $content = $content.TrimEnd("`r`n") # For some reason it produces two line endings at the end
             }
             default {
                 Write-UserMessage -Message "Not specific manifest extension ($_). Falling back to json" -Info
@@ -209,7 +225,7 @@ function Get-RemoteManifest {
         try {
             # TODO: Implement proxy
             $wc = New-Object System.Net.Webclient
-            $wc.Headers.Add('User-Agent', (Get-UserAgent))
+            $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
             $str = $wc.DownloadString($URL)
         } catch [System.Management.Automation.MethodInvocationException] {
             Write-UserMessage -Message "${URL}: $($_.Exception.InnerException.Message)" -Warning
@@ -467,7 +483,7 @@ function url_manifest($url) {
     $str = $null
     try {
         $wc = New-Object System.Net.Webclient
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         $str = $wc.DownloadString($url)
     } catch [System.Management.Automation.MethodInvocationException] {
         Write-UserMessage -Message "${url}: $($_.Exception.InnerException.Message)" -Warning
@@ -496,7 +512,7 @@ function manifest($app, $bucket, $url) {
 function save_installed_manifest($app, $bucket, $dir, $url) {
     if ($url) {
         $wc = New-Object System.Net.Webclient
-        $wc.Headers.Add('User-Agent', (Get-UserAgent))
+        $wc.Headers.Add('User-Agent', $SHOVEL_USERAGENT)
         # TODO: YAML
         Join-Path $dir 'scoop-manifest.json' | Out-UTF8Content -Content ($wc.DownloadString($url))
     } else {
@@ -509,18 +525,21 @@ function installed_manifest($app, $version, $global) {
     $d = versiondir $app $version $global
 
     #region Migration from non-generic file name
-    $old = 'manifest.json'
     $new = 'scoop-manifest.json'
-    if (Join-Path $d $old | Test-Path) {
-        Write-UserMessage -Message "Migrating $old to $new" -Info
-        Join-Path $d $old | Rename-Item -NewName $new
-    }
+    $old = 'manifest.json'
     $manifestPath = Join-Path $d $new
+    $oldManifestPath = Join-Path $d $old
+
+    if (!(Test-Path -LiteralPath $manifestPath -PathType 'Leaf') -and (Test-Path -LiteralPath $oldManifestPath -PathType 'Leaf')) {
+        Write-UserMessage -Message "[$app] Migrating $old to $new" -Info
+        debug $oldManifestPath
+        Rename-Item -LiteralPath $oldManifestPath -NewName $new
+    }
     #endregion Migration from non-generic file name
 
     # Different extension types
     if (!(Test-Path $manifestPath)) {
-        $installedManifests = Get-ChildItem -LiteralPath $d -Include 'scoop-manifest.*'
+        $installedManifests = Get-ChildItem -LiteralPath $d -Include 'scoop-manifest.*' -ErrorAction 'SilentlyContinue'
         if ($installedManifests.Count -gt 0) {
             $manifestPath = $installedManifests[0].FullName
         }
@@ -540,11 +559,13 @@ function save_install_info($info, $dir) {
 function install_info($app, $version, $global) {
     $d = versiondir $app $version $global
     $path = Join-Path $d 'scoop-install.json'
+    $oldPath = Join-Path $d 'install.json'
 
-    if (!(Test-Path $path)) {
-        if (Join-Path $d 'install.json' | Test-Path) {
-            Write-UserMessage -Message 'Migrating install.json to scoop-install.json' -Info
-            Join-Path $d 'install.json' | Rename-Item -NewName 'scoop-install.json'
+    if (!(Test-Path -LiteralPath $path -PathType 'Leaf')) {
+        if (Test-Path -LiteralPath $oldPath -PathType 'Leaf') {
+            Write-UserMessage -Message "[$app] Migrating install.json to scoop-install.json" -Info
+            debug $oldPath
+            Rename-Item -LiteralPath $oldPath -NewName 'scoop-install.json'
         } else {
             return $null
         }
@@ -556,6 +577,8 @@ function install_info($app, $version, $global) {
 function default_architecture {
     $arch = get_config 'default-architecture'
     $system = if ([System.IntPtr]::Size -eq 8) { '64bit' } else { '32bit' }
+
+    if (Test-IsArmArchitecture) { $arch = 'arm' + ($system -replace 'bit') }
 
     if ($null -eq $arch) {
         $arch = $system

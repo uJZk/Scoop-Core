@@ -12,18 +12,33 @@
 #   scoop install ./install/pwsh.json
 #
 # Options:
-#   -h, --help                Show help for this command.
-#   -a, --arch <32bit|64bit>  Use the specified architecture, if the application's manifest supports it.
-#   -g, --global              Install the application(s) globally.
-#   -i, --independent         Do not install dependencies automatically.
-#   -k, --no-cache            Do not use the download cache.
-#   -s, --skip                Skip hash validation (use with caution!).
+#   -h, --help                      Show help for this command.
+#   -a, --arch <32bit|64bit|arm64>  Use the specified architecture, if the application's manifest supports it.
+#   -g, --global                    Install the application(s) globally.
+#   -i, --independent               Do not install dependencies automatically.
+#   -k, --no-cache                  Do not use the download cache.
+#   -s, --skip                      Skip hash validation (use with caution!).
 
-'core', 'buckets', 'decompress', 'depends', 'getopt', 'help', 'Helpers', 'manifest', 'shortcuts', 'psmodules', 'Update', 'Versions', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('buckets', 'Get-KnownBucket'),
+    @('decompress', 'Expand-7zipArchive'),
+    @('depends', 'script_deps'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('psmodules', 'install_psmodule'),
+    @('shortcuts', 'rm_startmenu_shortcuts'),
+    @('Update', 'Update-ScoopCoreClone'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
-
-Reset-Alias
 
 # TODO: Export
 # TODO: Cleanup
@@ -60,7 +75,7 @@ function is_installed($app, $global, $version) {
     return $false
 }
 
-$opt, $apps, $err = getopt $args 'gfiksa:' 'global', 'force', 'independent', 'no-cache', 'skip', 'arch='
+$opt, $apps, $err = Resolve-GetOpt $args 'giksa:' 'global', 'independent', 'no-cache', 'skip', 'arch='
 if ($err) { Stop-ScoopExecution -Message "scoop install: $err" -ExitCode 2 }
 
 $exitCode = 0
@@ -113,15 +128,11 @@ $apps = @(($specific_versions_paths + $difference) | Where-Object { $_ } | Sort-
 # differentiate after dependencies are added
 $explicit_apps = $apps
 
-if (!$independent) {
+if ($false -eq $independent) {
     try {
         $apps = install_order $apps $architecture # Add dependencies
     } catch {
-        $title, $body = $_.Exception.Message -split '\|-'
-        Write-UserMessage -Message $body -Err
-        if ($title -ne 'Ignore') {
-            New-IssuePrompt -Application $app -Title $title -Body $body
-        }
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message
     }
 }
 
@@ -146,16 +157,20 @@ $failedApplications = @()
 
 foreach ($app in $apps) {
     $bucket = $cleanApp = $null
-    $applicationSpecificDependencies = @(deps $app $architecture)
-    $cmp = Compare-Object $applicationSpecificDependencies $failedDependencies -ExcludeDifferent
-    # Skip Installation because required depency failed
-    if ($cmp -and ($cmp.InputObject.Count -gt 0)) {
-        $f = $cmp.InputObject -join ', '
-        Write-UserMessage -Message "'$app' cannot be installed due to failed dependency installation ($f)" -Err
-        ++$problems
-        continue
+
+    if ($false -eq $independent) {
+        $applicationSpecificDependencies = @(deps $app $architecture)
+        $cmp = Compare-Object $applicationSpecificDependencies $failedDependencies -ExcludeDifferent
+        # Skip Installation because required depency failed
+        if ($cmp -and ($cmp.InputObject.Count -gt 0)) {
+            $f = $cmp.InputObject -join ', '
+            Write-UserMessage -Message "'$app' cannot be installed due to failed dependency installation ($f)" -Err
+            ++$problems
+            continue
+        }
     }
 
+    # TODO: Resolve-ManifestInformation
     $cleanApp, $bucket = parse_app $app
 
     # Prevent checking of already installed applications if specific version was provided.
@@ -178,11 +193,8 @@ foreach ($app in $apps) {
         # Register failed dependencies
         if ($explicit_apps -notcontains $app) { $failedDependencies += $app } else { $failedApplications += $app }
 
-        $title, $body = $_.Exception.Message -split '\|-'
-        if (!$body) { $body = $title }
-        Write-UserMessage -Message $body -Err
         debug $_.InvocationInfo
-        if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $cleanApp -Bucket $bucket -Title $title -Body $body }
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $cleanApp -Bucket $bucket
 
         continue
     }
@@ -190,8 +202,15 @@ foreach ($app in $apps) {
 
 show_suggestions $suggested
 
-if ($failedApplications) { Write-UserMessage -Message "These applications failed to install: $($failedApplications -join ', ')" -Err }
-if ($failedDependencies) { Write-UserMessage -Message "These dependencies failed to install: $($failedDependencies -join ', ')" -Err }
+if ($failedApplications) {
+    $pl = pluralize $failedApplications.Count 'This application' 'These applications'
+    Write-UserMessage -Message "$pl failed to install: $($failedApplications -join ', ')" -Err
+}
+
+if ($failedDependencies) {
+    $pl = pluralize $failedDependencies.Count 'This dependency' 'These dependencies'
+    Write-UserMessage -Message "$pl failed to install: $($failedDependencies -join ', ')" -Err
+}
 
 if ($problems -gt 0) { $exitCode = 10 + $problems }
 

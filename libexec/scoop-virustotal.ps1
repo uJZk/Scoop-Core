@@ -21,24 +21,32 @@
 #         2 & 4 combined
 #
 # Options:
-#   -h, --help                Show help for this command.
-#   -a, --arch <32bit|64bit>  Use the specified architecture, if the manifest supports it.
-#   -s, --scan                For packages where VirusTotal has no information, send download URL for analysis (and future retrieval).
-#                             This requires you to configure your virustotal_api_key (see help entry for config command).
-#   -n, --no-depends          By default, all dependencies are checked, too. This flag allows
-#                             to avoid it.
+#   -h, --help                      Show help for this command.
+#   -a, --arch <32bit|64bit|arm64>  Use the specified architecture, if the manifest supports it.
+#   -s, --scan                      For packages where VirusTotal has no information, send download URL for analysis (and future retrieval).
+#                                   This requires you to configure your virustotal_api_key (see help entry for config command).
+#   -n, --no-depends                By default, all dependencies are checked, too. This flag allows
+#                                   to avoid it.
 
-'core', 'depends', 'getopt', 'help', 'Helpers', 'VirusTotal' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('depends', 'script_deps'),
+    @('VirusTotal', 'Search-VirusTotal')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 # TODO: --no-depends => --independent
 # TODO: Drop --scan??
 
-Reset-Alias
-
 $ExitCode = 0
-$Options, $Applications, $_err = getopt $args 'a:sn' 'arch=', 'scan', 'no-depends'
+$Options, $Applications, $_err = Resolve-GetOpt $args 'a:sn' 'arch=', 'scan', 'no-depends'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop virustotal: $_err" -ExitCode 2 }
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }

@@ -7,15 +7,28 @@
 #   -p, --purge    Persisted data will be removed.
 #                  Normally when application is being uninstalled, the data defined in persist property/manually persisted are kept.
 
-'core', 'getopt', 'help', 'Helpers', 'install', 'manifest', 'psmodules', 'shortcuts', 'Uninstall', 'Versions' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('getopt', 'Resolve-GetOpt'),
+    @('help', 'scoop_help'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('Applications', 'Get-InstalledApplicationInformation'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('psmodules', 'install_psmodule'),
+    @('shortcuts', 'rm_startmenu_shortcuts'),
+    @('Uninstall', 'Uninstall-ScoopApplication'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
-
-Reset-Alias
 
 $ExitCode = 0
 $Problems = 0
-$Options, $Applications, $_err = getopt $args 'gp' 'global', 'purge'
+$Options, $Applications, $_err = Resolve-GetOpt $args 'gp' 'global', 'purge'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop uninstall: $_err" -ExitCode 2 }
 
@@ -44,12 +57,8 @@ foreach ($explode in $Applications) {
         $result = Uninstall-ScoopApplication -App $app -Global:$gl -Purge:$Purge -Older
     } catch {
         ++$Problems
-
-        $title, $body = $_.Exception.Message -split '\|-'
-        if (!$body) { $body = $title }
-        Write-UserMessage -Message $body -Err
         debug $_.InvocationInfo
-        if ($title -ne 'Ignore' -and ($title -ne $body)) { New-IssuePrompt -Application $app -Bucket $bucket -Title $title -Body $body }
+        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $app -Bucket $bucket
 
         continue
     }
