@@ -26,6 +26,7 @@
     @('Helpers', 'New-IssuePrompt'),
     @('buckets', 'Get-KnownBucket'),
     @('decompress', 'Expand-7zipArchive'),
+    @('Dependencies', 'Resolve-DependsProperty'),
     @('depends', 'script_deps'),
     @('install', 'install_app'),
     @('manifest', 'Resolve-ManifestInformation'),
@@ -89,7 +90,7 @@ $architecture = Resolve-ArchitectureParameter -Architecture $opt.a, $opt.arch
 if (!$apps) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 if ($global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
-if (is_scoop_outdated) { Update-Scoop }
+Update-Scoop -CheckLastUpdate
 
 # Get any specific versions that need to be handled first
 $specific_versions = $apps | Where-Object {

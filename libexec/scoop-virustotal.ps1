@@ -25,15 +25,14 @@
 #   -a, --arch <32bit|64bit|arm64>  Use the specified architecture, if the manifest supports it.
 #   -s, --scan                      For packages where VirusTotal has no information, send download URL for analysis (and future retrieval).
 #                                   This requires you to configure your virustotal_api_key (see help entry for config command).
-#   -n, --no-depends                By default, all dependencies are checked, too. This flag allows
-#                                   to avoid it.
+#   -i, --independent               By default, all dependencies are checked. Use this parameter check only the application without dependencies.
 
 @(
     @('core', 'Test-ScoopDebugEnabled'),
     @('getopt', 'Resolve-GetOpt'),
     @('help', 'scoop_help'),
     @('Helpers', 'New-IssuePrompt'),
-    @('depends', 'script_deps'),
+    @('Dependencies', 'Resolve-DependsProperty'),
     @('VirusTotal', 'Search-VirusTotal')
 ) | ForEach-Object {
     if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
@@ -42,19 +41,22 @@
     }
 }
 
-# TODO: --no-depends => --independent
 # TODO: Drop --scan??
 
 $ExitCode = 0
-$Options, $Applications, $_err = Resolve-GetOpt $args 'a:sn' 'arch=', 'scan', 'no-depends'
+$Options, $Applications, $_err = Resolve-GetOpt $args 'a:si' 'arch=', 'scan', 'independent'
 
 if ($_err) { Stop-ScoopExecution -Message "scoop virustotal: $_err" -ExitCode 2 }
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 if (!$VT_API_KEY) { Stop-ScoopExecution -Message 'Virustotal API Key is required' }
 
 $DoScan = $Options.scan -or $Options.s
-$Independent = $Options.'no-depends' -or $Options.n
+$Independent = $Options.independent -or $Options.i
 $Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
+$toInstall = @{
+    'Failed'   = @()
+    'Resolved' = @()
+}
 
 # Buildup all installed applications
 if ($Applications -eq '*') {
@@ -62,16 +64,41 @@ if ($Applications -eq '*') {
     $Applications += installed_apps $true
 }
 
-if (!$Independent) { $Applications = install_order $Applications $Architecture }
+# Properly resolve all dependencies and applications
+if ($Independent) {
+    foreach ($a in $Applications) {
+        $ar = $null
+        try {
+            $ar = Resolve-ManifestInformation -ApplicationQuery $a
+        } catch {
+            ++$Problems
+            Write-UserMessage -Message "$($_.Exception.Message)" -Err
+            continue
+        }
 
-foreach ($app in $Applications) {
-    # TODO: Adopt Resolve-ManifestInformation
-    # TOOD: Fix URL/local manifest installations
-    # Should it take installed manifest or remote manifest?
-    $manifest, $bucket = find_manifest $app
+        $toInstall.Resolved += $ar
+    }
+} else {
+    $toInstall = Resolve-MultipleApplicationDependency -Applications $Applications -Architecture $Architecture -IncludeInstalledDeps -IncludeInstalledApps
+}
+
+if ($toInstall.Failed.Count -gt 0) {
+    $Problems += $toInstall.Failed.Count
+}
+
+foreach ($app in $toInstall.Resolved) {
+    $appName = $app.ApplicationName
+    $manifest = $app.ManifestObject
+
     if (!$manifest) {
         $ExitCode = $ExitCode -bor $VT_ERR.NoInfo
-        Write-UserMessage -Message "${app}: manifest not found" -Err
+        Write-UserMessage -Message "${appName}: manifest not found" -Err
+        continue
+    }
+
+    if ($manifest.version -eq 'nightly') {
+        # TODO: Suggest --download in future
+        Write-UserMessage -Message "${appName}: Manifests with version 'nightly' cannot be checked as they do not contain hashes" -Warning
         continue
     }
 
@@ -79,28 +106,32 @@ foreach ($app in $Applications) {
         $hash = hash_for_url $manifest $url $Architecture
 
         if (!$hash) {
-            Write-UserMessage -Message "${app}: Cannot find hash for $url" -Warning
+            Write-UserMessage -Message "${appName}: Cannot find hash for '$url'" -Warning
+            # TODO: Adopt if ($Download) {}
             continue
-            # TODO: Adopt $Options.download
         }
 
         try {
-            $ExitCode = $ExitCode -bor (Search-VirusTotal $hash $app)
+            $ExitCode = $ExitCode -bor (Search-VirusTotal -Hash $hash -App $appName)
         } catch {
             $ExitCode = $ExitCode -bor $VT_ERR.Exception
 
             if ($_.Exception.Message -like '*(404)*') {
-                Submit-ToVirusTotal -Url $url -App $app -DoScan:$DoScan
+                Submit-ToVirusTotal -Url $url -App $appName -DoScan:$DoScan
             } else {
                 if ($_.Exception.Message -match '\(204|429\)') {
-                    Write-UserMessage -Message "${app}: VirusTotal request failed: $($_.Exception.Message)"
+                    Write-UserMessage -Message "${appName}: VirusTotal request failed: $($_.Exception.Message)"
                     $ExitCode = 3
                     continue
                 }
-                Write-UserMessage -Message "${app}: VirusTotal request failed: $($_.Exception.Message)"
+                Write-UserMessage -Message "${appName}: VirusTotal request failed: $($_.Exception.Message)"
             }
         }
     }
+}
+
+if ($Problems -gt 0) {
+    $ExitCode = 10 + $Problems
 }
 
 exit $ExitCode
