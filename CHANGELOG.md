@@ -4,6 +4,7 @@
 
 🎉🎉 YAML typed manifest and archived manifest installation support 🎉🎉
 
+- **scoop-search**: Add `-a`, `--api` paramters
 - **scoop-uninstall**: Warn user when he tries to uninstall dependency, which is still needed
 - **scoop-status**: Detect if applications, which were installed as dependency are still needed
 - **scoop-list**: Show if application was installed as dependency
@@ -55,7 +56,6 @@
     - It will be automatically added when `update` command is executed
 - **scoop-checkup**: Do not suggest 7zip installation when `7ZIPEXTRACT_USE_EXTERNAL` is configured
 - **scoop-search**:
-    - Add `-a`, `--api` options
     - Do not fail when parsing invalid local manifest
     - Support `githubToken` config and `GITHUB_TOKEN` environment variable for Github API calls
 - **scoop-install**, **scoop-update**: Report failed installations/updates at the end of execution
