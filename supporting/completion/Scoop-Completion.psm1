@@ -44,7 +44,7 @@ $script:SCOOP_SUB_COMMANDS = @{
 $script:SCOOP_SHORT_PARAMETERS = @{
     'cat'        = 'f'
     'cleanup'    = 'g k'
-    'depends'    = 'a'
+    'depends'    = 'a s'
     'download'   = 's u a b'
     'hold'       = 'g'
     'info'       = 'a'
@@ -55,12 +55,12 @@ $script:SCOOP_SHORT_PARAMETERS = @{
     'uninstall'  = 'g p'
     'update'     = 'f g i k s q'
     'utils'      = 'b'
-    'virustotal' = 'a s n'
+    'virustotal' = 'a s i'
 }
 $script:SCOOP_LONG_PARAMETERS = @{
     'cat'        = 'format'
     'cleanup'    = 'global cache'
-    'depends'    = 'arch'
+    'depends'    = 'arch skip-installed'
     'download'   = 'skip utility arch all-architectures'
     'hold'       = 'global'
     'info'       = 'arch'
@@ -71,7 +71,7 @@ $script:SCOOP_LONG_PARAMETERS = @{
     'uninstall'  = 'global purge'
     'update'     = 'force global independent no-cache skip quiet'
     'utils'      = 'bucketdir additional-options'
-    'virustotal' = 'arch scan no-depends'
+    'virustotal' = 'arch scan independent'
 }
 # Add --help and -h to all
 # TODO: Investigate cleaner approach

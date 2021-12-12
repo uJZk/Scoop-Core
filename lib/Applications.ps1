@@ -3,7 +3,7 @@
     @('Helpers', 'New-IssuePrompt'),
     @('json', 'ConvertToPrettyJson'),
     @('manifest', 'Resolve-ManifestInformation'),
-    @('depends', 'script_deps'),
+    @('Dependencies', 'Resolve-DependsProperty'),
     @('Versions', 'Clear-InstalledVersion')
 ) | ForEach-Object {
     if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
@@ -176,6 +176,7 @@ function app_status($app, $global) {
 
     $install_info = install_info $app $status.version $global
 
+    $status.install_info = $install_info
     $status.failed = (!$install_info -or !$status.version)
     $status.hold = ($install_info.hold -eq $true)
 
@@ -192,7 +193,8 @@ function app_status($app, $global) {
     }
 
     $status.missing_deps = @()
-    $deps = @(runtime_deps $manifest) | Where-Object {
+    # TODO: Adopt Resolve-ManifestInformation not needed to be fully compatible, consider some simple parsing
+    $deps = @(Resolve-DependsProperty -Manifest $manifest) | Where-Object {
         $app, $bucket, $null = parse_app $_
         return !(installed $app)
     }
@@ -213,6 +215,7 @@ function Confirm-InstallationStatus {
         Specifies to check globally installed applications.
     #>
     [CmdletBinding()]
+    [OutputType([System.Object[]])]
     param(
         [Parameter(Mandatory)]
         [String[]] $Apps,
@@ -221,11 +224,10 @@ function Confirm-InstallationStatus {
     $Global | Out-Null # PowerShell/PSScriptAnalyzer#1472
     $installed = @()
 
-    $Apps | Select-Object -Unique | Where-Object -Property 'Name' -NE -Value 'scoop' | ForEach-Object {
-        # TODO: Adopt Resolve-ManifestInformation
-        # Should not be needed to resolve, as it will contain only valid installed applications
-        $app, $null, $null = parse_app $_
-        $buc = (app_status $app $Global).bucket
+    foreach ($app in $Apps | Select-Object -Unique | Where-Object -Property 'Name' -NE -Value 'scoop' | Where-Object { $_ -ne 'scoop' }) {
+        $info = install_info $app (Select-CurrentVersion -AppName $app -Global:$Global) $Global
+        $buc = $info.bucket
+
         if ($Global) {
             if (installed $app $true) {
                 $installed += , @($app, $true, $buc)
@@ -248,4 +250,59 @@ function Confirm-InstallationStatus {
     }
 
     return , $installed
+}
+
+function Test-ResolvedObjectIsInstalled {
+    [CmdletBinding()]
+    [OutputType([System.Boolean])]
+    param($ResolvedObject, [Switch] $Global)
+
+    process {
+        $app = $ResolvedObject.ApplicationName
+        $gf = if ($Global) { ' --global' } else { '' }
+
+        if (installed $app $Global) {
+            $installedVersion = Select-CurrentVersion -AppName $app -Global:$Global
+            $info = install_info $app $installedVersion $Global
+
+            if ($info.hold -and ($info.hold -eq $true)) {
+                Write-UserMessage -Message @(
+                    "'$app' is being held."
+                    "Use 'scoop unhold$gf $app' to unhold the application first and then try again."
+                ) -Warning
+
+                return $true
+            }
+
+            # Test if explicitly provided version is installed
+            if ($ResolvedObject.RequestedVersion) {
+                $all = @(Get-InstalledVersion -AppName $app -Global:$Global)
+
+                $verdict = $all -contains $ResolvedObject.RequestedVersion
+                if ($verdict) {
+                    Write-UserMessage -Message "'$app' ($($ResolvedObject.RequestedVersion)) is already installed." -Warning
+                }
+
+                return $verdict
+            }
+
+            if (!$info) {
+                Write-UserMessage -Err -Message @(
+                    "It looks like a previous installation of '$app' failed."
+                    "Run 'scoop uninstall$gf $app' before retrying the install."
+                )
+
+                return $true
+            }
+
+            Write-UserMessage -Message @(
+                "'$app' ($installedVersion) is already installed.",
+                "Use 'scoop update$gc $app' to install a new version."
+            ) -Warning
+
+            return $true
+        }
+
+        return $false
+    }
 }

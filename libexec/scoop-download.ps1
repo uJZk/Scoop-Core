@@ -2,6 +2,8 @@
 # Summary: Download manifest files into cache folder.
 # Help: All manifest files will be downloaded into cache folder without need to install the application.
 #
+# Supports the same format of <APP> parameter as in "scoop install" (See: 'scoop install --help')
+#
 # Options:
 #   -h, --help                      Show help for this command.
 #   -s, --skip                      Skip hash check validation (use with caution!).
@@ -72,7 +74,7 @@ foreach ($app in $application) {
         $checkHash = $false
     }
 
-    Write-UserMessage "Starting download for '$app'" -Color 'Green' # TODO: Add better text with parsed appname, version, url/bucket
+    Write-UserMessage -Message "Starting download for '$app'" -Color 'Green' # TODO: Add better text with parsed appname, version, url/bucket
 
     $registered = $false
     # TODO: Rework with proper wrappers after #3149

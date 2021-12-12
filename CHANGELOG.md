@@ -2,10 +2,44 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+🎉🎉 YAML typed manifest and archived manifest installation support 🎉🎉
+
+- **scoop-uninstall**: Warn user when he tries to uninstall dependency, which is still needed
+- **scoop-status**: Detect if applications, which were installed as dependency are still needed
+- **scoop-list**: Show if application was installed as dependency
+    - If it was installed as dependency, the parent application will be shown as `{application}` in blue
+- Adopt new resolve function for parameter passing
+    - **scoop-install**
+    - **scoop-depends**
+- Refactor dependencies handling
+    - `scoop-depends`: Add `s`, `--skip-installed` parameter
+        - By default all dependencies are shown (including installed)
+        - Use this parameter to not include already installed dependencies in list
+    - Support YML manifests
+    - `depends` property now can consist of following:
+
+        ```yml
+        depends:
+        - yarn # Simple lookup from local buckets (supported before)
+        - Base/yarn # Simple lookup from specific local bucket (supported before)
+        - yarn@1 # Lookup from local buckets using specific version
+        - Base/yarn@1 # Lookup from specific local bucket using specific version
+        - https://raw.githubusercontent.com/User/Repo/main/bucket/alfa.yml  # Any URL, which is valid manifest
+        - https://raw.githubusercontent.com/User/Repo/main/bucket/alfabeta.json  # Any URL, which is valid manifest
+        - E:/Install/Shovel/customManifest.yml # Even local manifest support. Use with caution in controlled environment!
+        ```
+
+- **scoop-virustotal**:
+    - Rename parameter `no-depends` (`-n`) to `independent` (`-i`) for consistency with other commands
+    - Adopt `Resolve-ManifestObject` to support remote manifests/local manifests/archived manifests lookups
+    - Yaml typed manifests, archived manifests, locally generated manfiests are also supported
+    - `nightly` versions are skipped and user is warned
+- Consider debug mode enabled only when the `debug` config option or `SCOOP_DEBUG` is valid boolean value (`$true`, `$false`, `1`, `0`, `true`, `false`)
+    - Prevent multiple evaluations of debug mode check
 - Respect `NO_JUNCTIONS` config when resolving helper utilities
     - Fallback to executable from PATH when the utility is not installed via scoop.
 
-### [0.6.5-pre1]
+### 0.6.5-pre1
 
 - **scoop-config**:
     - Consider lessmsi as default for msi extraction

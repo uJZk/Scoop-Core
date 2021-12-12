@@ -40,7 +40,7 @@ function ConvertFrom-Manifest {
                 $result = ConvertFrom-Json -InputObject $content -ErrorAction 'Stop'
             }
             { $_ -in '.yaml', '.yml' } {
-                if (!(Get-Module -Name 'powershell-yaml')) {
+                if (!(Get-Module -Name 'powershell-yaml' -ErrorAction 'SilentlyContinue')) {
                     Join-Path $PSScriptRoot '..\supporting\yaml\bin\powershell-yaml.psd1' | Import-Module -Prefix 'CloudBase' -Verbose:$false
                 }
 
@@ -191,10 +191,12 @@ function Get-LocalManifest {
 
         $localPath = Get-Item -LiteralPath $Query
         $applicationName = $localPath.BaseName
+        $reqVersion = $null
 
         # Check if archived version was provided
         if ($localPath.FullName -match $_archivedManifestRegex) {
             $applicationName = $Matches['manifestName']
+            $reqVersion = $manifest.version
         }
         # Check if downloaded manfiest was provided
         if ($localPath.Name -match $_localDownloadedRegex) {
@@ -202,9 +204,11 @@ function Get-LocalManifest {
         }
 
         return @{
-            'Name'     = $applicationName
-            'Manifest' = $manifest
-            'Path'     = $localPath
+            'Name'             = $applicationName
+            'RequestedVersion' = $reqVersion
+            'Manifest'         = $manifest
+            'Path'             = $localPath
+            'Print'            = $Query
         }
     }
 }
@@ -269,6 +273,7 @@ function Get-RemoteManifest {
             'Name'     = $name
             'Manifest' = $manifest
             'Path'     = Get-Item -LiteralPath $manifestFile
+            'Print'    = $URL
         }
     }
 }
@@ -318,9 +323,12 @@ function Get-ManifestFromLookup {
 
         $manifestBucket = $valid.Bucket
         $manifestPath = $valid.Path
+        $printableRepresentation = ''
 
         # Select versioned manifest or generate it
         if ($requestedVersion) {
+            $printableRepresentation = "@$requestedVersion"
+
             try {
                 $path = manifest_path -app $requestedName -bucket $manifestBucket -version $requestedVersion
                 if ($null -eq $path) { throw 'trigger' }
@@ -352,10 +360,12 @@ function Get-ManifestFromLookup {
         }
 
         return @{
-            'Name'     = $name
-            'Bucket'   = $manifestBucket
-            'Manifest' = $manifest
-            'Path'     = (Get-Item -LiteralPath $manifestPath)
+            'Name'             = $name
+            'Bucket'           = $manifestBucket
+            'RequestedVersion' = $requestedVersion
+            'Print'            = "$manifestBucket/$name$printableRepresentation"
+            'Manifest'         = $manifest
+            'Path'             = (Get-Item -LiteralPath $manifestPath)
         }
     }
 }
@@ -385,14 +395,16 @@ function Resolve-ManifestInformation {
     param([Parameter(Mandatory, ValueFromPipeline)] [String] $ApplicationQuery)
 
     process {
-        $manifest = $applicationName = $applicationVersion = $bucket = $localPath = $url = $calcBucket = $calcURL = $null
+        $manifest = $applicationName = $applicationVersion = $requestedVersion = $bucket = $localPath = $url = $print = $calcBucket = $calcURL = $null
 
         if (Test-Path -LiteralPath $ApplicationQuery) {
             $res = Get-LocalManifest -Query $ApplicationQuery
             $applicationName = $res.Name
             $applicationVersion = $res.Manifest.version
+            $requestedVersion = $res.RequestedVersion
             $manifest = $res.Manifest
             $localPath = $res.Path
+            $print = $res.Print
         } elseif ($ApplicationQuery -match '^https?://') {
             $res = Get-RemoteManifest -URL $ApplicationQuery
             $applicationName = $res.Name
@@ -400,13 +412,16 @@ function Resolve-ManifestInformation {
             $manifest = $res.Manifest
             $localPath = $res.Path
             $url = $ApplicationQuery
+            $print = $res.Print
         } elseif ($ApplicationQuery -match $_lookupRegex) {
             $res = Get-ManifestFromLookup -Query $ApplicationQuery
             $applicationName = $res.Name
+            $requestedVersion = $res.RequestedVersion
             $applicationVersion = $res.Manifest.version
             $manifest = $res.Manifest
             $localPath = $res.Path
             $bucket = $res.Bucket
+            $print = $res.Print
         } else {
             throw 'Not supported way how to provide manifest'
         }
@@ -421,13 +436,17 @@ function Resolve-ManifestInformation {
 
         return [Ordered] @{
             'ApplicationName'  = $applicationName
+            'RequestedQuery'   = $ApplicationQuery
+            'RequestedVersion' = $requestedVersion
             'Version'          = $applicationVersion
             'Bucket'           = $bucket
             'ManifestObject'   = $manifest
             'Url'              = $url
+            'Print'            = $print
             'LocalPath'        = $localPath
             'CalculatedUrl'    = $calcURL
             'CalculatedBucket' = $calcBucket
+            'Dependency'       = $false
         }
     }
 }
@@ -538,7 +557,7 @@ function installed_manifest($app, $version, $global) {
     #endregion Migration from non-generic file name
 
     # Different extension types
-    if (!(Test-Path $manifestPath)) {
+    if (!(Test-Path -LiteralPath $manifestPath -PathType 'Leaf')) {
         $installedManifests = Get-ChildItem -LiteralPath $d -Include 'scoop-manifest.*' -ErrorAction 'SilentlyContinue'
         if ($installedManifests.Count -gt 0) {
             $manifestPath = $installedManifests[0].FullName
@@ -660,7 +679,7 @@ function generate_user_manifest($app, $bucket, $version) {
         $archivedManifest = Get-Item -LiteralPath $archivedManifest
         Write-UserMessage -Message 'Found archived version' -Success
 
-        $workspace = usermanifestsdir | Join-Path -ChildPath "$cleanApp$($archivedManifest.Extension)"
+        $workspace = usermanifestsdir | Confirm-DirectoryExistence | Join-Path -ChildPath "$cleanApp$($archivedManifest.Extension)"
         Copy-Item $archivedManifest.FullName $workspace -Force
 
         return $workspace
@@ -679,7 +698,7 @@ function generate_user_manifest($app, $bucket, $version) {
         return $null
     }
 
-    $path = usermanifestsdir | ensure
+    $path = usermanifestsdir | Confirm-DirectoryExistence
     try {
         $newManifest = Invoke-Autoupdate $app "$path" $manifest $version $(@{ }) -IgnoreArchive
         if ($null -eq $newManifest) { throw "Could not install $app@$version" }

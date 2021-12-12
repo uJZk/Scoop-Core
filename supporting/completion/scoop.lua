@@ -172,6 +172,7 @@ local scoopParser = parser({
     }),
     'depends' .. parser({getLocallyAvailableApplicationsByScoop},
         '-a' .. architectureParser, '--arch' .. architectureParser,
+        '-s', '--skip-installed',
         '-h', '--help'
     ),
     'download' .. parser({getLocallyAvailableApplicationsByScoop},
@@ -239,7 +240,7 @@ local scoopParser = parser({
     'virustotal' .. parser({getLocallyAvailableApplicationsByScoop},
         '-a' .. architectureParser, '--arch' .. architectureParser,
         '-s', '--scan',
-        '-n', '--no-depends',
+        '-i', '--independent',
         '-h', '--help'
     ):loop(1),
     'which' .. parser({'-h', '--help'})
