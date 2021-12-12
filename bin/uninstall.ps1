@@ -11,12 +11,23 @@ param(
     [bool] $purge
 )
 
-'core', 'Helpers', 'install', 'shortcuts', 'Versions', 'manifest', 'Uninstall' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('install', 'install_app'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('shortcuts', 'rm_startmenu_shortcuts'),
+    @('Uninstall', 'Uninstall-ScoopApplication'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 if ($global -and !(is_admin)) {
-    Stop-ScoopExecution -Message 'Admin privileges are required for globall uninstallation.' -ExitCode 4
+    Stop-ScoopExecution -Message 'Admin privileges are required for global uninstallation.' -ExitCode 4
 }
 
 $message = 'This will uninstall Scoop and all the programs that have been installed with Scoop!'

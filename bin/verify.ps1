@@ -1,13 +1,13 @@
 <#
 .SYNOPSIS
-    Check manifest for a newer version.
-.DESCRIPTION
-    Checks websites for newer versions using an (optional) regular expression defined in the manifest.
+    Check if manifest if valid according to standards.
 .PARAMETER App
     Specifies the manifest name.
     Wildcards are supported.
 .PARAMETER Dir
     Specifies the location of manifests.
+.PARAMETER SkipValid
+    Specifies to not show valid manifests.
 #>
 param(
     [SupportsWildcards()]
@@ -17,82 +17,136 @@ param(
             if (!(Test-Path $_ -Type 'Container')) { throw "$_ is not a directory!" }
             $true
         })]
-    [String] $Dir
+    [String] $Dir,
+    [Switch] $SkipValid
 )
 
-'core', 'manifest', 'buckets', 'autoupdate', 'json', 'Versions', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('manifest', 'Resolve-ManifestInformation')
+) | ForEach-Object {
+    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 $Dir = Resolve-Path $Dir
 $Queue = @()
-$exitCode = 0
-$problems = 0
+$ExitCode = 0
+$Problems = 0
 
-Add-Type -Path "$PSScriptRoot\..\supporting\validator\bin\Scoop.Validator.dll"
-$validator = New-Object Scoop.Validator("$PSScriptRoot\..\schema.json", $false)
-$quotaExceeded = $false
-$All = @{}
+#region Functions
+# Check spaces/tabs/endlines/UTF8
+function Test-FileFormat {
+    [CmdletBinding()]
+    [OutputType([System.Boolean])]
+    param(
+        $Gci,
+        $Manifest
+    )
 
-foreach ($ff in Get-ChildItem $Dir "$App.*" -File) {
-    if ($ff.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
-        Write-UserMessage "Skipping $($ff.Name)" -Info
+    $verdict = $true
+
+    $splat = @{
+        'LiteralPath' = $Gci.FullName
+        'TotalCount'  = 3
+    }
+    if ((Get-Command Get-Content).Parameters.ContainsKey('AsByteStream')) {
+        $splat.Add('AsByteStream', $true)
+    } else {
+        $splat.Add('Encoding', 'Byte')
+    }
+
+    $content = [char[]] (Get-Content -LiteralPath @splat) -join ''
+
+    # TODO: UTF32
+    foreach ($prohibited in @('\xEF\xBB\xBF', '\xFF\xFE', '\xFE\xFF')) {
+        if ([Regex]::Match($content, "(?ms)^$prohibited").Success) {
+            $verdict = $false
+            break
+        }
+    }
+
+    # Check for the only 1 newline at the end of the file
+    $string = [System.IO.File]::ReadAllText($Gci.FullName)
+    if (($string.Length -gt 0) -and (($string[-1] -ne "`n") -or ($string[-3] -eq "`n"))) {
+        $verdict = $false
+    }
+
+    # CRLF
+    # TODO: Join with below?
+    $content = Get-Content -LiteralPath $Gci.FullName -Raw
+    $lines = [Regex]::Split($content, '\r\n')
+
+    for ($i = 0; $i -lt $lines.Count; ++$i) {
+        if ([Regex]::Match($lines[$i], '\r|\n').Success ) {
+            $verdict = $false
+            break
+        }
+    }
+
+    $lines = [System.IO.File]::ReadAllLines($Gci.FullName)
+    for ($i = 0; $i -lt $lines.Count; ++$i) {
+        # No trailing whitespace
+        if ($lines[$i] -match '\s+$') {
+            $verdict = $false
+            break
+        }
+
+        # No tabs
+        if ($lines[$i] -notmatch '^[ ]*(\S|$)') {
+            $verdict = $false
+            break
+        }
+    }
+
+    return $verdict
+}
+#endregion Functions
+
+foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
+    if ($gci.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
+        Write-UserMessage -Message "Skipping $($gci.Name)" -Info
         continue
     }
 
     try {
-        $m = ConvertFrom-Manifest -Path $ff.FullName
+        $manifest = ConvertFrom-Manifest -Path $gci.FullName
     } catch {
-        Write-UserMessage -Message "Invalid manifest: $($ff.Name)" -Err
-        ++$problems
+        Write-UserMessage -Message "Invalid manifest: $($gci.Name) $($_.Exception.Message)" -Err
         continue
     }
-
-    $checks = @{}
-
-    # TODO: Support YAML
-    # Schema validation
-    if (!$quotaExceeded -and ($ff.Extension -notmatch '\.ya?ml$')) {
-        try {
-            $result = $validator.Validate($ff.FullName)
-            $checks.Add('Schema', $result)
-        } catch {
-            if ($_.Exception.Message -like '*The free-quota limit of 1000 schema validations per hour has been reached.*') {
-                $quotaExceeded = $true
-                Write-UserMessage -Message 'Schema validation limit exceeded. Will skip further validations.' -Color 'DarkYellow'
-            } else {
-                throw
-            }
-        }
-    }
-
-    $licenseCheck = ([bool] $m.license)
-    if ($m.license -is [String]) {
-        # TODO: Test URL from spdx
-    } elseif ($m.license.identifier) {
-        if ($m.license.url) {
-            $licenseCheck = $true
-        } else {
-            # TODO: Test string identifier as above
-        }
-    }
-    $checks.Add('License', $licenseCheck)
-
-    # URLS + Hashes Invoke-ScoopCommand 'download' -b $_
-    # Scripts
-    #   Replace deprecated functions
-    #   ??Try with code style??
-    # Checkver
-    # Autoupdate
-    # Installation
-    # Update
-    # Uninstallation
-    # Format
-    $All.Add($ff.BaseName, $checks)
+    $Queue += , @($gci, $manifest)
 }
 
-if ($problems -gt 0) { $exitCode = 10 + $problems }
+foreach ($q in $Queue) {
+    $gci, $json = $q
+    $name = $gci.Name
 
-$All | ConvertTo-Json | Write-Host -f green
+    $tests = @{
+        'UTF8' = Test-FileFormat -Gci $gci -Manifest $json
+        # 'Schema' = $false
+    }
 
-exit $exitCode
+    # Print
+    $valid = @(@($tests.Values) -like $false).Count -eq 0
+
+    if ($valid) {
+        if (!$SkipValid) {
+            Write-UserMessage -Message "${name}: Valid" -Success
+        }
+    } else {
+        ++$Problems
+        $failed = $tests.Keys | Where-Object { $false -eq $tests[$_] }
+
+        Write-UserMessage -Message "${name}: Invalid ($($failed -join ', '))" -Err
+    }
+}
+
+if ($Problems -gt 0) {
+    $ExitCode = 10 + $Problems
+}
+
+exit $ExitCode

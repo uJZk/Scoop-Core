@@ -61,8 +61,20 @@ param(
     [String] $Version = ''
 )
 
-'core', 'manifest', 'buckets', 'autoupdate', 'json', 'Versions', 'install' | ForEach-Object {
-    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
+@(
+    @('core', 'Test-ScoopDebugEnabled'),
+    @('Helpers', 'New-IssuePrompt'),
+    @('autoupdate', 'Invoke-Autoupdate'),
+    @('buckets', 'Get-KnownBucket'),
+    @('install', 'install_app'),
+    @('json', 'ConvertToPrettyJson'),
+    @('manifest', 'Resolve-ManifestInformation'),
+    @('Versions', 'Clear-InstalledVersion')
+) | ForEach-Object {
+    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
+        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
+        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
+    }
 }
 
 $ForceUpdate | Out-Null # PowerShell/PSScriptAnalyzer#1472
