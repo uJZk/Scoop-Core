@@ -113,7 +113,7 @@ function Test-FileFormat {
         }
 
         # No tabs
-        if ($lines[$i] -notmatch '^[ ]*(\S|$)') {
+        if (($lines[$i] -notmatch '^[ ]*(\S|$)') -or ($lines[$i] -match '[\t]') ) {
             $verdict = $false
             $vtab = $true
         }
