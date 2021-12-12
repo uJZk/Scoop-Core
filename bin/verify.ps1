@@ -1,6 +1,14 @@
 <#
 .SYNOPSIS
     Check if manifest if valid according to standards.
+.DESCRIPTION
+    How to fix the known issues:
+        File is not UTF8-encoded                    => shovel utils format ./path/to/the/manifest
+        File does not end with exactly 1 newline    => shovel utils format ./path/to/the/manifest
+        Line endings are not CRLF                   => shovel utils format ./path/to/the/manifest
+        File contains trailing spaces               => shovel utils format ./path/to/the/manifest
+        File contains tabs                          => shovel utils format ./path/to/the/manifest
+        Manifest does not validate against schema   => Open file in editor, which support schema validation and fix the shown issues. You can use '$env:SCOOP_HOME\supporting\validator\bin\validator.exe $env:SCOOP_HOME\schema.json ./path/to/the/manifest' to see the issues
 .PARAMETER App
     Specifies the manifest name.
     Wildcards are supported.
@@ -38,16 +46,22 @@ $ExitCode = 0
 $Problems = 0
 
 #region Functions
+# Setup validator
+$schema = Resolve-Path "$PSScriptRoot/../schema.json"
+& (Join-Path $PSScriptRoot '..\supporting\yaml\bin\Load-Assemblies.ps1')
+Add-Type -Path (Join-Path $PSScriptRoot '..\supporting\validator\bin\Newtonsoft.Json.dll')
+Add-Type -Path (Join-Path $PSScriptRoot '..\supporting\validator\bin\Newtonsoft.Json.Schema.dll')
+Add-Type -Path (Join-Path $PSScriptRoot '..\supporting\validator\bin\Scoop.Validator.dll')
+$SHOVEL_VALIDATOR = New-Object Scoop.Validator($schema, $true)
+
 # Check spaces/tabs/endlines/UTF8
 function Test-FileFormat {
     [CmdletBinding()]
-    [OutputType([System.Boolean])]
-    param(
-        $Gci,
-        $Manifest
-    )
+    [OutputType([System.Array])]
+    param([Parameter(Mandatory)] $Gci)
 
     $verdict = $true
+    $problems = @()
 
     $splat = @{
         'LiteralPath' = $Gci.FullName
@@ -59,12 +73,12 @@ function Test-FileFormat {
         $splat.Add('Encoding', 'Byte')
     }
 
-    $content = [char[]] (Get-Content -LiteralPath @splat) -join ''
+    $content = [char[]] (Get-Content @splat) -join ''
 
-    # TODO: UTF32
-    foreach ($prohibited in @('\xEF\xBB\xBF', '\xFF\xFE', '\xFE\xFF')) {
+    foreach ($prohibited in @('\xEF\xBB\xBF', '\xFF\xFE', '\xFE\xFF\x00', '\xFF\xFE\x00\x00', '\x00\x00\xFE\xFF')) {
         if ([Regex]::Match($content, "(?ms)^$prohibited").Success) {
             $verdict = $false
+            $problems += 'File is not UTF8-encoded'
             break
         }
     }
@@ -73,36 +87,57 @@ function Test-FileFormat {
     $string = [System.IO.File]::ReadAllText($Gci.FullName)
     if (($string.Length -gt 0) -and (($string[-1] -ne "`n") -or ($string[-3] -eq "`n"))) {
         $verdict = $false
+        $problems += 'File does not end with exactly 1 newline'
     }
 
     # CRLF
-    # TODO: Join with below?
-    $content = Get-Content -LiteralPath $Gci.FullName -Raw
-    $lines = [Regex]::Split($content, '\r\n')
+    $content = Get-Content $gci.FullName -Raw
+    $lines = $content -split '\r\n'
 
     for ($i = 0; $i -lt $lines.Count; ++$i) {
         if ([Regex]::Match($lines[$i], '\r|\n').Success ) {
             $verdict = $false
+            $vcr = $true
             break
         }
     }
 
+    $vtrail = $vtab = $false
     $lines = [System.IO.File]::ReadAllLines($Gci.FullName)
+
     for ($i = 0; $i -lt $lines.Count; ++$i) {
         # No trailing whitespace
         if ($lines[$i] -match '\s+$') {
             $verdict = $false
-            break
+            $vtrail = $true
         }
 
         # No tabs
         if ($lines[$i] -notmatch '^[ ]*(\S|$)') {
             $verdict = $false
-            break
+            $vtab = $true
         }
+
+        if ($verdict -eq $false) { break }
     }
 
-    return $verdict
+    if ($vcr) { $problems += 'Line endings are not CRLF' }
+    if ($vtrail) { $problems += 'File contains trailing spaces' }
+    if ($vtab) { $problems += 'File contains tabs' }
+
+    return $problems
+}
+
+function Test-ManifestSchema {
+    [CmdletBinding()]
+    [OutputType([System.Object[]])]
+    param([Parameter(Mandatory)] $Gci)
+
+    $problems = @()
+    $verdict = $SHOVEL_VALIDATOR.Validate($Gci.FullName)
+    if ($verdict -eq $false) { $problems = @('Manifest does not validate against schema') }
+
+    return $problems
 }
 #endregion Functions
 
@@ -121,17 +156,16 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     $Queue += , @($gci, $manifest)
 }
 
-foreach ($q in $Queue) {
+foreach ($q in $Queue[-1..-9]) {
     $gci, $json = $q
-    $name = $gci.Name
+    $name = $gci.BaseName
 
     $tests = @{
-        'UTF8' = Test-FileFormat -Gci $gci -Manifest $json
-        # 'Schema' = $false
+        'FileFormat' = Test-FileFormat -Gci $gci
+        'Schema'     = Test-ManifestSchema -Gci $gci
     }
 
-    # Print
-    $valid = @(@($tests.Values) -like $false).Count -eq 0
+    $valid = @(@($tests.Values) -notlike @()).Count -eq 0
 
     if ($valid) {
         if (!$SkipValid) {
@@ -139,9 +173,12 @@ foreach ($q in $Queue) {
         }
     } else {
         ++$Problems
-        $failed = $tests.Keys | Where-Object { $false -eq $tests[$_] }
+        $failed = @()
+        $tests.Keys | Where-Object { $tests[$_].Count -gt 0 } | ForEach-Object {
+            $failed += $tests[$_]
+        }
 
-        Write-UserMessage -Message "${name}: Invalid ($($failed -join ', '))" -Err
+        Write-UserMessage -Message "${name}: $($failed -join ', ')" -Err -SkipSeverity
     }
 }
 

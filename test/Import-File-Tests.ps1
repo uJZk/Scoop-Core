@@ -18,10 +18,12 @@ Describe 'Style constraints for non-binary project files' {
         if ($files.Count -eq 0) { throw 'No non-binary project were found' }
     }
 
-    It 'files do not contain leading UTF-8 BOM or UTF-16' -Skip:$(!$files_exist) {
-        # UTF-8 BOM == 0xEF 0xBB 0xBF
-        # UTF-16 BE == 0xFE 0xFF
-        # UTF-16 LE == 0xFF 0xFE
+    It 'files do not contain leading UTF-8, UTF-16, UTF-32 BOM' -Skip:$(!$files_exist) {
+        # UTF-8 BOM == 0xEF 0xBB 0xBF | \xEF\xBB\xBF
+        # UTF-16 LE == 0xFF 0xFE | \xFF\xFE
+        # UTF-16 BE == 0xFE 0xFF 0x00 | \xFE\xFF\x00
+        # UTF-32 LE == 0xFF 0xFE 0x00 0x00 | \xFF\xFE\x00\x00
+        # UTF-32 BE == 0x00 0x00 0xFE 0xFF | \x00\x00\xFE\xFF
         # see http://www.powershellmagazine.com/2012/12/17/pscxtip-how-to-determine-the-byte-order-mark-of-a-text-file @@ https://archive.is/RgT42
         # ref: http://poshcode.org/2153 @@ https://archive.is/sGnnu
         $badFiles = @()
@@ -39,7 +41,7 @@ Describe 'Style constraints for non-binary project files' {
             }
             $content = [char[]](Get-Content @splat) -join ''
 
-            foreach ($prohibited in @('\xEF\xBB\xBF', '\xFF\xFE', '\xFE\xFF')) {
+            foreach ($prohibited in @('\xEF\xBB\xBF', '\xFF\xFE', '\xFE\xFF\x00', '\xFF\xFE\x00\x00', '\x00\x00\xFE\xFF')) {
                 if ([Regex]::Match($content, "(?ms)^$prohibited").Success) {
                     $badFiles += $file.FullName
                     break
