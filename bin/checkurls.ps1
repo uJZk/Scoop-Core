@@ -51,6 +51,7 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     try {
         $manifest = ConvertFrom-Manifest -Path $gci.FullName
     } catch {
+        ++$problems
         Write-UserMessage -Message "Invalid manifest: $($gci.Name)" -Err
         continue
     }

@@ -45,7 +45,6 @@ $Queue = @()
 $ExitCode = 0
 $Problems = 0
 
-#region Functions
 # Setup validator
 $schema = Resolve-Path "$PSScriptRoot/../schema.json"
 & (Join-Path $PSScriptRoot '..\supporting\yaml\bin\Load-Assemblies.ps1')
@@ -54,6 +53,7 @@ Add-Type -Path (Join-Path $PSScriptRoot '..\supporting\validator\bin\Newtonsoft.
 Add-Type -Path (Join-Path $PSScriptRoot '..\supporting\validator\bin\Scoop.Validator.dll')
 $SHOVEL_VALIDATOR = New-Object Scoop.Validator($schema, $true)
 
+#region Functions
 # Check spaces/tabs/endlines/UTF8
 function Test-FileFormat {
     [CmdletBinding()]
@@ -150,6 +150,7 @@ foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     try {
         $manifest = ConvertFrom-Manifest -Path $gci.FullName
     } catch {
+        ++$Problems
         Write-UserMessage -Message "Invalid manifest: $($gci.Name) $($_.Exception.Message)" -Err
         continue
     }
@@ -165,18 +166,14 @@ foreach ($q in $Queue[-1..-9]) {
         'Schema'     = Test-ManifestSchema -Gci $gci
     }
 
-    $valid = @(@($tests.Values) -notlike @()).Count -eq 0
+    $failed = @($tests.Values) -notlike @()
 
-    if ($valid) {
+    if ($failed.Count -eq 0) {
         if (!$SkipValid) {
             Write-UserMessage -Message "${name}: Valid" -Success
         }
     } else {
         ++$Problems
-        $failed = @()
-        $tests.Keys | Where-Object { $tests[$_].Count -gt 0 } | ForEach-Object {
-            $failed += $tests[$_]
-        }
 
         Write-UserMessage -Message "${name}: $($failed -join ', ')" -Err -SkipSeverity
     }
