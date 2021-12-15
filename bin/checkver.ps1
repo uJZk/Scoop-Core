@@ -61,20 +61,8 @@ param(
     [String] $Version = ''
 )
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('autoupdate', 'Invoke-Autoupdate'),
-    @('buckets', 'Get-KnownBucket'),
-    @('install', 'install_app'),
-    @('json', 'ConvertToPrettyJson'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'manifest', 'buckets', 'autoupdate', 'json', 'Versions', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 $ForceUpdate | Out-Null # PowerShell/PSScriptAnalyzer#1472
@@ -122,10 +110,10 @@ function Invoke-Check {
     $page = $EventToCheck.SourceEventArgs.Result
     $err = $EventToCheck.SourceEventArgs.Error
 
-    if ($SHOVEL_DEBUG_ENABLED) { Join-Path $PWD 'checkver-page.html' | Out-UTF8Content -Content $page }
+    if (Test-ScoopDebugEnabled) { Join-Path $PWD 'checkver-page.html' | Out-UTF8Content -Content $page }
     if ($json.checkver.script) {
         $page = $json.checkver.script -join "`r`n" | Invoke-Expression
-        if ($SHOVEL_DEBUG_ENABLED) { Join-Path $PWD 'checkver-page-script.html' | Out-UTF8Content -Content $page }
+        if (Test-ScoopDebugEnabled) { Join-Path $PWD 'checkver-page-script.html' | Out-UTF8Content -Content $page }
     }
 
     if ($err) {
@@ -217,7 +205,7 @@ function Invoke-Check {
     if ($ForceUpdate) {
         $Update = $true
     } elseif ($Update -and ($json.autoupdate.disable -and ($json.autoupdate.disable -eq $true))) {
-        Write-UserMessage -Message "${appName}: Skipping disabled autoupdate" -Info
+        Write-UserMessage "${appName}: Skipping disabled autoupdate" -Info
         return
     }
 
@@ -245,7 +233,7 @@ Get-Event | ForEach-Object { Remove-Event $_.SourceIdentifier }
 #region Main
 foreach ($ff in Get-ChildItem $Dir "$Search.*" -File) {
     if ($ff.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
-        Write-UserMessage -Message "Skipping $($ff.Name)" -Info
+        Write-UserMessage "Skipping $($ff.Name)" -Info
         continue
     }
 
@@ -258,7 +246,7 @@ foreach ($ff in Get-ChildItem $Dir "$Search.*" -File) {
     }
     if ($m.checkver) {
         if (!$ForceUpdate -and ($m.checkver.disable -and ($m.checkver.disable -eq $true))) {
-            Write-UserMessage -Message "$($ff.BaseName): Skipping disabled checkver" -Info
+            Write-UserMessage "$($ff.BaseName): Skipping disabled checkver" -Info
             continue
         }
         $Queue += , @($ff, $m)

@@ -24,16 +24,8 @@ param(
     [Switch] $SkipValid
 )
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'install_app'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'manifest', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 $Timeout | Out-Null # PowerShell/PSScriptAnalyzer#1472
@@ -44,14 +36,13 @@ $problems = 0
 
 foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     if ($gci.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
-        Write-UserMessage -Message "Skipping $($gci.Name)" -Info
+        Write-UserMessage "Skipping $($gci.Name)" -Info
         continue
     }
 
     try {
         $manifest = ConvertFrom-Manifest -Path $gci.FullName
     } catch {
-        ++$problems
         Write-UserMessage -Message "Invalid manifest: $($gci.Name)" -Err
         continue
     }

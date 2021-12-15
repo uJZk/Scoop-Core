@@ -11,19 +11,8 @@ param(
     [bool] $purge
 )
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'install_app'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('shortcuts', 'rm_startmenu_shortcuts'),
-    @('Uninstall', 'Uninstall-ScoopApplication'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'Helpers', 'install', 'shortcuts', 'Versions', 'manifest', 'Uninstall' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 if ($global -and !(is_admin)) {

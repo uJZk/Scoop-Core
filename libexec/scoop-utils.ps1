@@ -88,7 +88,7 @@ try {
     & $UtilityPath -App $ManifestPath -Dir $BucketFolder @AdditionalArgs
     $ExitCode = $LASTEXITCODE
 } catch {
-    Write-UserMessage -Message "Utility issue: $($_.Exception.Message) ('$($_.InvocationInfo.PositionMessage)')" -Err
+    Write-UserMessage -Message "Utility issue: $($_.Exception.Message)" -Err
     $ExitCode = 3
 }
 

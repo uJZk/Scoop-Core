@@ -10,17 +10,8 @@ $ErrorActionPreference = 'Stop'
 $checkver = Join-Path $PSScriptRoot 'checkver.ps1'
 $Sups = Join-Path $PSScriptRoot '..\supporting\*' | Get-ChildItem -Include "$Supporting.*" -File
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('decompress', 'Expand-7zipArchive'),
-    @('install', 'install_app'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'decompress', 'Helpers', 'manifest', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 $exitCode = 0
@@ -48,7 +39,7 @@ foreach ($sup in $Sups) {
     Start-Sleep -Seconds 2
 
     Rename-Item $dir 'old' -ErrorAction 'SilentlyContinue'
-    Confirm-DirectoryExistence -LiteralPath $dir | Out-Null
+    Confirm-DirectoryExistence -Directory $dir | Out-Null
     Start-Sleep -Seconds 2
     try {
         $fname = dl_urls $name $manifest.version $manifest '' (default_architecture) $dir $true $true

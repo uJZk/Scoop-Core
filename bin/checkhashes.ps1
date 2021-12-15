@@ -14,7 +14,7 @@
     Specifies to not show manifest without mismatched hashes.
 .PARAMETER UseCache
     Specifies to not delete downloaded files from cache.
-    Should not be used, because check should be used for downloading actual version of file (as normal user, not finding in some document from vendors, which could be damaged / wrong (Example: Slack@3.3.1 ScoopInstaller/Extras#1192)), not some previously downloaded.
+    Should not be used, because check should be used for downloading actual version of file (as normal user, not finding in some document from vendors, which could be damaged / wrong (Example: Slack@3.3.1 lukesampson/scoop-extras#1192)), not some previously downloaded.
 .EXAMPLE
     PS BUCKETROOT> .\bin\checkhashes.ps1
     Check all manifests for hash mismatch.
@@ -38,20 +38,8 @@ param(
     [Switch] $UseCache
 )
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('autoupdate', 'Invoke-Autoupdate'),
-    @('buckets', 'Get-KnownBucket'),
-    @('install', 'install_app'),
-    @('json', 'ConvertToPrettyJson'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'Helpers', 'manifest', 'buckets', 'autoupdate', 'json', 'Versions', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
 $Dir = Resolve-Path $Dir
@@ -62,14 +50,14 @@ $problems = 0
 if (!$UseCache) { Join-Path $SCOOP_CACHE_DIRECTORY '*HASH_CHECK*' | Remove-Item -ErrorAction 'SilentlyContinue' -Force -Recurse }
 
 function err ([String] $name, [String[]] $message) {
-    Write-UserMessage -Message "${name}: ", ($message -join "`r`n") -Color 'Red'
+    Write-UserMessage "${name}: ", ($message -join "`r`n") -Color 'Red'
 }
 
 $MANIFESTS = @()
 # Gather all required manifests
 foreach ($gci in Get-ChildItem $Dir "$App.*" -File) {
     if ($gci.Extension -notmatch "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)") {
-        Write-UserMessage -Message "Skipping $($gci.Name)" -Info
+        Write-UserMessage "Skipping $($gci.Name)" -Info
         continue
     }
 
@@ -198,25 +186,19 @@ foreach ($current in $MANIFESTS) {
                 $64bit_count = $current.manifest.architecture.'64bit'.hash.Count
                 $start = $max
                 $max = $max + $64bit_count
-                $up = $actuals[$start..($max - 1)]
-                if ($up.Count -eq 1) { $up = $up[0] }
-                $current.manifest.architecture.'64bit'.hash = $up
+                $current.manifest.architecture.'64bit'.hash = $actuals[$start..($max - 1)]
             }
             if ($platforms.Contains('32bit')) {
                 $32bit_count = $current.manifest.architecture.'32bit'.hash.Count
                 $start = $max
                 $max = $max + $32bit_count
-                $up = $actuals[$start..($max - 1)]
-                if ($up.Count -eq 1) { $up = $up[0] }
-                $current.manifest.architecture.'32bit'.hash = $up
+                $current.manifest.architecture.'32bit'.hash = $actuals[$start..($max - 1)]
             }
             if ($platforms.Contains('arm64')) {
                 $arm64_count = $current.manifest.architecture.'arm64'.hash.Count
                 $start = $max
                 $max = $max + $arm64_count
-                $up = $actuals[$start..($max - 1)]
-                if ($up.Count -eq 1) { $up = $up[0] }
-                $current.manifest.architecture.'arm64'.hash = $up
+                $current.manifest.architecture.'arm64'.hash = $actuals[$start..($max - 1)]
             }
         }
 
