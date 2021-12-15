@@ -95,6 +95,7 @@ function ConvertTo-Manifest {
                     Join-Path $PSScriptRoot '..\supporting\yaml\bin\powershell-yaml.psd1' | Import-Module -Prefix 'CloudBase' -Verbose:$false
                 }
 
+                # TODO: Try to adopt similar stuff like ConvertToPrettyJson
                 $content = ConvertTo-CloudBaseYaml -Data $Manifest
                 $content = $content.TrimEnd("`r`n") # For some reason it produces two line endings at the end
             }
@@ -597,7 +598,7 @@ function default_architecture {
     $arch = get_config 'default-architecture'
     $system = if ([System.IntPtr]::Size -eq 8) { '64bit' } else { '32bit' }
 
-    if (Test-IsArmArchitecture) { $arch = 'arm' + ($system -replace 'bit') }
+    if ($SHOVEL_IS_ARM_ARCH) { $arch = 'arm' + ($system -replace 'bit') }
 
     if ($null -eq $arch) {
         $arch = $system
