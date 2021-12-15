@@ -92,7 +92,7 @@ Describe -Tag 'Manifests' 'manifest-validation' {
 
         $quota_exceeded = $false
 
-        foreach ($file in $manifest_files[-1..-5]) {
+        foreach ($file in $manifest_files) {
             $skip_manifest = ($changed_manifests -inotcontains $file.FullName)
             if (($env:CI -ne $true) -or ($changed_manifests -imatch 'schema.json')) { $skip_manifest = $false }
 
