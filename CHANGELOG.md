@@ -5,6 +5,7 @@
 🎉🎉 YAML typed manifest and archived manifest installation support 🎉🎉
 
 - **scoop-search**: Add `-a`, `--api` paramters
+- **CI**: Support validation of YML typed manifests
 - Cache the arm check to prevent multiple calls of `uname` on *nix
 - **Unix**: Fix `--version` command under *nix
 - **scoop-uninstall**: Warn user when he tries to uninstall dependency, which is still needed
