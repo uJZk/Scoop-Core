@@ -88,6 +88,7 @@ try {
     & $UtilityPath -App $ManifestPath -Dir $BucketFolder @AdditionalArgs
     $ExitCode = $LASTEXITCODE
 } catch {
+    debug $_.InvocationInfo
     Write-UserMessage -Message "Utility issue: $($_.Exception.Message)" -Err
     $ExitCode = 3
 }
