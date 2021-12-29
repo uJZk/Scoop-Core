@@ -1,6 +1,7 @@
 @(
     @('core', 'Test-ScoopDebugEnabled'),
     @('Versions', 'Clear-InstalledVersion'),
+    @('install', 'msi_installed'), # TODO: Refactor and eliminate
     @('manifest', 'Resolve-ManifestInformation')
 ) | ForEach-Object {
     if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
@@ -19,7 +20,7 @@ function Install-ScoopApplication {
         $version = $ResolvedObject.ManifestObject.version
 
         if ($version -match '[^\w\.\-\+_]') {
-            throw [ScoopException] "Invalid manifest|-Manifest version has unsupported character '$($matches[0])'." # TerminatingError thrown
+            throw [ScoopException]::new("Invalid manifest|-Manifest version has unsupported character '$($Matches[0])'.", $version) # TerminatingError thrown
         }
 
         if ($version -eq 'nightly') {
@@ -28,7 +29,7 @@ function Install-ScoopApplication {
         }
 
         if (!(supports_architecture $manifest $Architecture)) {
-            throw [ScoopException] "'$appName' does not support $Architecture architecture" # TerminatingError thrown
+            throw [ScoopException]::new("'$appName' does not support $Architecture architecture") # TerminatingError thrown
         }
 
         Deny-ArmInstallation -Manifest $manifest -Architecture $architecture

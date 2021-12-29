@@ -135,7 +135,7 @@ function Set-InstalledApplicationInformationPropertyValue {
         $info = if ($InputObject) { $InputObject } else { Get-InstalledApplicationInformation -AppName $AppName -Version $Version -Global:$Global }
         if (!$info) { $info = @{ } }
         if ($Property.Count -ne $Value.Count) {
-            throw [ScoopException] 'Property and value mismatch'
+            throw [ScoopException]::new('Property and value mismatch')
         }
     }
 
@@ -149,7 +149,7 @@ function Set-InstalledApplicationInformationPropertyValue {
                 if ($Force) {
                     $info.$prop = $val
                 } else {
-                    throw [ScoopException] "Property '$prop' is already set"
+                    throw [ScoopException]::new("Property '$prop' is already set")
                 }
             } else {
                 $info | Add-Member -MemberType 'NoteProperty' -Name $prop -Value $val
@@ -179,13 +179,23 @@ function app_status($app, $global) {
     $status.install_info = $install_info
     $status.failed = (!$install_info -or !$status.version)
     $status.hold = ($install_info.hold -eq $true)
-
-    $manifest = manifest $app $install_info.bucket $install_info.url
     $status.bucket = $install_info.bucket
-    $status.removed = (!$manifest)
-    if ($manifest.version) {
-        $status.latest_version = $manifest.version
+    $status.removed = $false
+
+    $todo = $app
+    if ($install_info.bucket) {
+        $todo = "$($install_info.bucket)/$app"
+    } elseif ($install_info.url) {
+        $todo = $install_info.url
     }
+    $manifest = $null
+    try {
+        $manifest = (Resolve-ManifestInformation -ApplicationQuery $todo).ManifestObject
+    } catch {
+        $status.removed = $true
+    }
+
+    if ($manifest.version) { $status.latest_version = $manifest.version }
 
     $status.outdated = $false
     if ($status.version -and $status.latest_version) {
@@ -193,10 +203,16 @@ function app_status($app, $global) {
     }
 
     $status.missing_deps = @()
-    # TODO: Adopt Resolve-ManifestInformation not needed to be fully compatible, consider some simple parsing
+    # TODO: This is not correct. Why would you check dependencies of the potential newer version of application?
+    #   scoop-manifest should be used instead
+    # TODO: Better handle different dependencies version
     $deps = @(Resolve-DependsProperty -Manifest $manifest) | Where-Object {
-        $app, $bucket, $null = parse_app $_
-        return !(installed $app)
+        try {
+            $res = Resolve-ManifestInformation -ApplicationQuery $_ -Simple
+            return !(installed $res.ApplicationName)
+        } catch {
+            return $true
+        }
     }
 
     if ($deps) { $status.missing_deps += , $deps }

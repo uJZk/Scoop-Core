@@ -3,7 +3,7 @@
     @('help', 'scoop_help'),
     @('Helpers', 'New-IssuePrompt'),
     @('commands', 'Invoke-ScoopCommand'),
-    @('install', 'install_app')
+    @('install', 'msi_installed')
 ) | ForEach-Object {
     if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
         Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
@@ -42,7 +42,7 @@ function Get-ScoopAliasPath {
     )
 
     begin {
-        if (($null -eq $AliasName) -or ($AliasName -eq '')) { throw [ScoopException] 'Alias name required' }
+        if (($null -eq $AliasName) -or ($AliasName -eq '')) { throw [ScoopException]::new('Alias name required') }
     }
 
     process { return shimdir $false | Join-Path -ChildPath "scoop-$AliasName.ps1" }

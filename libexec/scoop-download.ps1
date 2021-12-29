@@ -16,7 +16,7 @@
     @('getopt', 'Resolve-GetOpt'),
     @('help', 'scoop_help'),
     @('Helpers', 'New-IssuePrompt'),
-    @('install', 'install_app'),
+    @('install', 'msi_installed'),
     @('manifest', 'Resolve-ManifestInformation')
 ) | ForEach-Object {
     if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
@@ -91,7 +91,7 @@ foreach ($app in $application) {
                     }
 
                     debug $_.InvocationInfo
-                    New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
+                    New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket -Version $version
 
                     continue
                 }
@@ -115,7 +115,7 @@ foreach ($app in $application) {
                                     Write-UserMessage -Message 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.' -Warning
                                 }
 
-                                throw [ScoopException] "Hash check failed|-$err" # TerminatingError thrown
+                                throw [ScoopException]::new("Hash check failed|-$err") # TerminatingError thrown
                             }
                         }
                     } catch {
@@ -126,7 +126,7 @@ foreach ($app in $application) {
                         }
 
                         debug $_.InvocationInfo
-                        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket
+                        New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $appName -Bucket $bucket -Version $version
 
                         continue
                     }
