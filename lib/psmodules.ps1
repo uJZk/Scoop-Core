@@ -13,7 +13,7 @@ function install_psmodule($manifest, $dir, $global) {
     if (!$psmodule) { return }
 
     $moduleName = $psmodule.name
-    if (!$moduleName) { throw [ScoopException] "Invalid manifest|-The 'name' property is missing from 'psmodule'" } # TerminatingError thrown
+    if (!$moduleName) { throw [ScoopException]::new("Invalid manifest|-The 'name' property is missing from 'psmodule'") } # TerminatingError thrown
 
     $modules = if ($global) { $SCOOP_GLOBAL_MODULE_DIRECTORY } else { $SCOOP_MODULE_DIRECTORY }
     $modules = Confirm-DirectoryExistence -LiteralPath $modules
@@ -26,13 +26,12 @@ function install_psmodule($manifest, $dir, $global) {
 
     if (Test-Path $linkFrom) {
         Write-UserMessage -Message "$(friendly_path $linkFrom) already exists. It will be replaced." -Warning
-        $linkFrom = Resolve-Path $linkFrom
-        # TODO: Drop comspec
-        & "$env:COMSPEC" /c "rmdir `"$linkFrom`""
+        $linkFrom = Resolve-Path $linkFrom # TODOOOO: Why????
+
+        Remove-DirectoryJunctionLink -LinkName $linkFrom.FullName
     }
 
-    # TODO: Drop comspec
-    & "$env:COMSPEC" /c "mklink /j `"$linkFrom`" `"$dir`"" | Out-Null
+    New-DirectoryJunctionLink -LinkName $linkFrom -Target $dir | Out-Null
 }
 
 function uninstall_psmodule($manifest, $dir, $global) {
@@ -47,13 +46,16 @@ function uninstall_psmodule($manifest, $dir, $global) {
 
     if (Test-Path $linkFrom) {
         Write-UserMessage -Message "Removing $(friendly_path $linkFrom)"
-        $linkfrom = Resolve-Path $linkFrom
-        # TODO: Drop comspec
-        & "$env:COMSPEC" /c "rmdir `"$linkFrom`""
+        $linkfrom = Resolve-Path $linkFrom # TODOOOO: Why????
+
+        Remove-DirectoryJunctionLink -LinkName $linkFrom.FullName
     }
 }
 
 function ensure_in_psmodulepath($dir, $global) {
+    # TODO: Properly support unix
+    if ($SHOVEL_IS_UNIX) { return }
+
     $path = env 'psmodulepath' $global
     if (!$global -and ($null -eq $path)) {
         # Add "default" psmodule path

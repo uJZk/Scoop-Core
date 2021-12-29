@@ -2,7 +2,7 @@
     @('core', 'Test-ScoopDebugEnabled'),
     @('Helpers', 'New-IssuePrompt'),
     @('decompress', 'Expand-7zipArchive'),
-    @('install', 'install_app')
+    @('install', 'msi_installed')
 ) | ForEach-Object {
     if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
         Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
@@ -161,7 +161,7 @@ function Resolve-SpecificQueryDependency {
         try {
             $information = Resolve-ManifestInformation -ApplicationQuery $ApplicationQuery
         } catch {
-            throw [ScoopException] "'$ApplicationQuery' -> $($_.Exception.Message)"
+            throw [ScoopException]::new("'$ApplicationQuery' -> $($_.Exception.Message)")
         }
     }
 
@@ -171,7 +171,7 @@ function Resolve-SpecificQueryDependency {
     foreach ($dep in $deps) {
         if ($Resolved.ApplicationName -notcontains $dep) {
             if ($Unresolved -contains $dep) {
-                throw [ScoopException] "Circular dependency detected: '$($information.ApplicationName)' -> '$dep'." # TerminatingError thrown
+                throw [ScoopException]::new("Circular dependency detected: '$($information.ApplicationName)' -> '$dep'.") # TerminatingError thrown
             }
 
             Resolve-SpecificQueryDependency -ApplicationQuery $dep -Architecture $Architecture -Resolved $Resolved -Unresolved $Unresolved -IncludeInstalled:$IncludeInstalled

@@ -20,117 +20,14 @@ function Deny-ArmInstallation {
     process {
         if ($SHOVEL_IS_ARM_ARCH) {
             if (($Architecture -eq 'arm64') -and !($Manifest.'architecture'.'arm64')) {
-                throw [ScoopException] "Manifest does not explicitly support 'arm64' architecture. Try to install with '--arch 32bit' or '--arch 64bit' to use Windows arm emulation."
+                throw [ScoopException]::new("Manifest does not explicitly support 'arm64' architecture. Try to install with '--arch 32bit' or '--arch 64bit' to use Windows arm emulation.")
             }
         } else {
             if ($Architecture -eq 'arm64') {
                 if ($true -eq (get_config 'dbgBypassArmCheck' $false)) { return }
-                throw [ScoopException] "Installation of 'arm64' version is not supported on x86 based system"
+                throw [ScoopException]::new("Installation of 'arm64' version is not supported on x86 based system")
             }
         }
-    }
-}
-
-function install_app($app, $architecture, $global, $suggested, $use_cache = $true, $check_hash = $true) {
-    $app, $bucket, $null = parse_app $app
-    $app, $manifest, $bucket, $url = Find-Manifest $app $bucket
-
-    if (!$manifest) {
-        throw [ScoopException] "Could not find manifest for '$app'$(if($url){ " at the URL $url" })." # TerminatingError thrown
-    }
-
-    $version = $manifest.version
-    if (!$version) { throw [ScoopException] "Invalid manifest|-Manifest '$app' does not specify a version." } # TerminatingError thrown
-    if ($version -match '[^\w\.\-\+_]') {
-        throw [ScoopException] "Invalid manifest|-Manifest version has unsupported character '$($matches[0])'." # TerminatingError thrown
-    }
-
-    $is_nightly = $version -eq 'nightly'
-    if ($is_nightly) {
-        $version = nightly_version $(Get-Date)
-        $check_hash = $false
-    }
-
-    if (!(supports_architecture $manifest $architecture)) {
-        throw [ScoopException] "'$app' does not support $architecture architecture" # TerminatingError thrown
-    }
-
-    Deny-ArmInstallation -Manifest $manifest -Architecture $architecture
-
-    $buc = if ($bucket) { " [$bucket]" } else { '' }
-    Write-UserMessage -Message "Installing '$app' ($version) [$architecture]$buc"
-
-    # Show license
-    $license = $manifest.license
-    if ($license -and ($license -ne 'Unknown')) {
-        $id = if ($license.identifier) { $license.identifier } else { $license }
-        # Remove [|,]...
-        if ($id -like '*...') { $id = $id -replace '[|,]\.{3}' }
-        $id = $id -split ','
-        $id = $id -split '\|'
-
-        if ($license.url) {
-            $s = if ($id.Count -eq 1) { $id } else { $id -join ', ' }
-            $toShow = $s + ' (' + $license.url + ')'
-        } else {
-            $line = if ($id.Count -gt 1) { "`r`n  " } else { '' }
-            $id | ForEach-Object {
-                $toShow += "$line$_ (https://spdx.org/licenses/$_.html)"
-            }
-        }
-
-        Write-UserMessage -Message "By installing you accept following $(pluralize $id.Count 'license' 'licenses'): $toShow" -Warn
-    }
-
-    # Variables
-    $dir = versiondir $app $version $global | Confirm-DirectoryExistence
-    $current_dir = current_dir $dir # Save some lines in manifests
-    $original_dir = $dir # Keep reference to real (not linked) directory
-    $persist_dir = persistdir $app $global
-
-    # Suggest installing arm64
-    if ((Test-IsArmArchitecture) -and ($architecture -ne 'arm64') -and ($manifest.'architecture'.'arm64')) {
-        Write-UserMessage -Message 'Manifest explicitly supports arm64. Consider to install using arm64 version to achieve best compatibility/performance.' -Success
-    }
-
-    # Download and extraction
-    Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_download' -Architecture $architecture
-    $fname = dl_urls $app $version $manifest $bucket $architecture $dir $use_cache $check_hash
-
-    # Installers
-    Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_install' -Architecture $architecture
-    run_installer $fname $manifest $architecture $dir $global
-    ensure_install_dir_not_in_path $dir $global
-    $dir = link_current $dir
-    create_shims $manifest $dir $global $architecture
-    create_startmenu_shortcuts $manifest $dir $global $architecture
-    install_psmodule $manifest $dir $global
-    if ($global) { ensure_scoop_in_path $global } # Can assume local scoop is in path
-    env_add_path $manifest $dir $global $architecture
-    env_set $manifest $dir $global $architecture
-
-    # Persist data
-    persist_data $manifest $original_dir $persist_dir
-    persist_permission $manifest $global
-
-    Invoke-ManifestScript -Manifest $manifest -ScriptName 'post_install' -Architecture $architecture
-
-    # Save info for uninstall
-    save_installed_manifest $app $bucket $dir $url
-    save_install_info @{ 'architecture' = $architecture; 'url' = $url; 'bucket' = $bucket } $dir
-
-    if ($manifest.suggest) { $suggested[$app] = $manifest.suggest }
-
-    Write-UserMessage -Message "'$app' ($version) was installed successfully!" -Success
-
-    # Additional info to user
-    show_notes $manifest $dir $original_dir $persist_dir
-
-    if ($manifest.changelog) {
-        $changelog = $manifest.changelog
-        if (!$changelog.StartsWith('http')) { $changelog = friendly_path (Join-Path $dir $changelog) }
-
-        Write-UserMessage -Message "New changes in this release: '$changelog'" -Success
     }
 }
 
@@ -242,41 +139,18 @@ function Test-Aria2Enabled {
     process { return (Test-HelperInstalled -Helper 'Aria2') -and (get_config 'aria2-enabled' $true) }
 }
 
-function Find-Manifest($app, $bucket) {
-    $manifest, $url = $null, $null
-
-    # Check if app is a URL or UNC path
-    if ($app -match '^(ht|f)tps?://|\\\\') {
-        $url = $app
-        $app = appname_from_url $url
-        $manifest = url_manifest $url
-    } else {
-        # Check buckets
-        $manifest, $bucket = find_manifest $app $bucket
-
-        if (!$manifest) {
-            # Could not find app in buckets: check if it's a local path
-            $path = $app
-            # TODO: YAML
-            if (!$path.endswith('.json')) { $path += '.json' }
-            if (Test-Path $path) {
-                $url = "$(Resolve-Path $path)"
-                $app = appname_from_url $url
-                $manifest, $bucket = url_manifest $url
-            }
-        }
-    }
-
-    return $app, $manifest, $bucket, $url
-}
-
+#region TODO: Extract lib/Download.ps1
 function dl_with_cache($app, $version, $url, $to, $cookies = $null, $use_cache = $true) {
     $cached = cache_path $app $version $url
     debug $cached
 
     if (!(Test-Path $cached) -or !$use_cache) {
         Confirm-DirectoryExistence -LiteralPath $SCOOP_CACHE_DIRECTORY | Out-Null
-        do_dl $url "$cached.download" $cookies
+        try {
+            do_dl $url "$cached.download" $cookies
+        } catch {
+            throw [ScoopException]::new($_.Exception.Message, $version) # TerminatingError thrown
+        }
         Move-Item "$cached.download" $cached -Force
     } else { Write-UserMessage -Message "Loading $(url_remote_filename $url) from cache" }
 
@@ -292,10 +166,12 @@ function do_dl($url, $to, $cookies) {
     } catch {
         $e = $_.Exception
         if ($e.InnerException) { Write-UserMessage -Message $e.InnerException -Err }
-        throw [ScoopException] "Download failed|-$($e.Message)" # TerminatingError thrown
+        throw [ScoopException]::new("Download failed|-$($e.Message)") # TerminatingError thrown
     }
 }
+#endregion TODO: Extract lib/Download.ps1
 
+#region TODO: Extract lib/Download.aria.ps1
 function aria_exit_code($exitcode) {
     $codes = @{
         0  = 'All downloads were successful'
@@ -444,6 +320,7 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
         Out-UTF8File -Path $urlstxt -Content $urlstxt_content
 
         # Build aria2 command
+        # TODO: Adopt better approach
         $aria2 = "& '$(Get-HelperPath -Helper Aria2)' $($options -join ' ')"
 
         debug $aria2
@@ -484,7 +361,7 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
                 $aria2
             )
 
-            throw [ScoopException] "Download via aria2 failed|-$mes" # TerminatingError thrown
+            throw [ScoopException]::new("Download via aria2 failed|-$mes", $version) # TerminatingError thrown
         }
 
         # Remove aria2 input file when done
@@ -508,12 +385,12 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
                     Write-UserMessage -Message 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.' -Color Yellow
                 }
 
-                throw [ScoopException] "Hash check failed|-$err" # TerminatingError thrown
+                throw [ScoopException]::new("Hash check failed|-$err", $version) # TerminatingError thrown
             }
         }
 
         # Copy or move file to target location
-        if (!(Test-Path $data.$url.source) ) { throw [ScoopException] 'Cached file not found' } # TerminatingError thrown
+        if (!(Test-Path $data.$url.source) ) { throw [ScoopException]::new('Cached file not found') } # TerminatingError thrown
 
         if ($dir -ne $SCOOP_CACHE_DIRECTORY) {
             if ($use_cache) {
@@ -524,7 +401,9 @@ function dl_with_cache_aria2($app, $version, $manifest, $architecture, $dir, $co
         }
     }
 }
+#endregion TODO: Extract lib/Download.aria.ps1
 
+#region TODO: Extract lib/Download.ps1
 # Download with filesize and progress indicator
 function dl($url, $to, $cookies, $progress) {
     $reqUrl = ($url -split '#')[0]
@@ -705,7 +584,7 @@ function dl_urls($app, $version, $manifest, $bucket, $architecture, $dir, $use_c
     try {
         Confirm-DirectoryExistence -LiteralPath $SCOOP_CACHE_DIRECTORY | Out-Null
     } catch {
-        throw [ScoopException] "Could not create cache directory: '$SCOOP_CACHE_DIRECTORY'"
+        throw [ScoopException]::new("Could not create cache directory: '$SCOOP_CACHE_DIRECTORY'")
     }
 
     # Download first
@@ -729,7 +608,7 @@ function dl_urls($app, $version, $manifest, $bucket, $architecture, $dir, $use_c
                     if ($url.Contains('sourceforge.net')) {
                         Write-Host -f yellow 'SourceForge.net is known for causing hash validation fails. Please try again before opening a ticket.'
                     }
-                    throw [ScoopException] "Hash check failed|-$err" # TerminatingError thrown
+                    throw [ScoopException]::new("Hash check failed|-$err", $version) # TerminatingError thrown
                 }
             }
         }
@@ -809,7 +688,7 @@ function hash_for_url($manifest, $url, $arch) {
     $urls = @(url $manifest $arch)
 
     $index = [array]::IndexOf($urls, $url)
-    if ($index -eq -1) { throw [ScoopException] "Invalid manifest|-Could not find hash in manifest for '$url'." } # TerminatingError thrown
+    if ($index -eq -1) { throw [ScoopException]::new("Invalid manifest|-Could not find hash in manifest for '$url'.") } # TerminatingError thrown
 
     return @($hashes)[$index]
 }
@@ -868,6 +747,7 @@ function compute_hash($file, $algname) {
 
     return ''
 }
+#endregion TODO: Extract lib/Download.ps1
 
 # for dealing with installers
 function args($config, $dir, $global) {
@@ -910,9 +790,9 @@ function run_installer($fname, $manifest, $architecture, $dir, $global) {
 function install_msi($fname, $dir, $msi) {
     $msifile = Join-Path $dir (coalesce $msi.File "$fname")
 
-    if (!(is_in_dir $dir $msifile)) { throw [ScoopException] "Invalid manifest|-MSI file '$msifile' is outside the app directory." } # TerminatingError thrown
-    if (!($msi.code)) { throw [ScoopException] 'Invalid manifest|-Could not find MSI code.' } # TerminatingError thrown
-    if (msi_installed $msi.code) { throw [ScoopException] 'The MSI package is already installed on this system.' } # TerminatingError thrown
+    if (!(is_in_dir $dir $msifile)) { throw [ScoopException]::new("Invalid manifest|-MSI file '$msifile' is outside the app directory.") } # TerminatingError thrown
+    if (!($msi.code)) { throw [ScoopException]::new('Invalid manifest|-Could not find MSI code.') } # TerminatingError thrown
+    if (msi_installed $msi.code) { throw [ScoopException]::new('The MSI package is already installed on this system.') } # TerminatingError thrown
 
     $logfile = Join-Path $dir 'install.log'
 
@@ -925,7 +805,7 @@ function install_msi($fname, $dir, $msi) {
 
     $installed = Invoke-ExternalCommand 'msiexec' $arg -Activity 'Running installer...' -ContinueExitCodes $continue_exit_codes
     if (!$installed) {
-        throw [ScoopException] "Installation aborted. You might need to run 'scoop uninstall $app' before trying again." # TerminatingError thrown
+        throw [ScoopException]::new("Installation aborted. You might need to run 'scoop uninstall $app' before trying again.") # TerminatingError thrown
     }
     Remove-Item $logfile
     Remove-Item $msifile
@@ -948,7 +828,7 @@ function msi_installed($code) {
 function install_prog($fname, $dir, $installer, $global) {
     $prog = Join-Path $dir (coalesce $installer.file "$fname")
     if (!(is_in_dir $dir $prog)) {
-        throw [ScoopException] "Invalid manifest|-Installer '$prog' is outside the app directory." # TerminatingError thrown
+        throw [ScoopException]::new("Invalid manifest|-Installer '$prog' is outside the app directory.") # TerminatingError thrown
     }
     $arg = @(args $installer.args $dir $global)
 
@@ -956,12 +836,12 @@ function install_prog($fname, $dir, $installer, $global) {
         Write-UserMessage -Message "Running installer file '$prog'" -Output:$false
         & $prog @arg
         if ($LASTEXITCODE -ne 0) {
-            throw [ScoopException] "Installation failed with exit code $LASTEXITCODE" # TerminatingError thrown
+            throw [ScoopException]::new("Installation failed with exit code $LASTEXITCODE") # TerminatingError thrown
         }
     } else {
         $installed = Invoke-ExternalCommand $prog $arg -Activity 'Running installer...'
         if (!$installed) {
-            throw [ScoopException] "Installation aborted. You might need to run 'scoop uninstall $app' before trying again." # TerminatingError thrown
+            throw [ScoopException]::new("Installation aborted. You might need to run 'scoop uninstall $app' before trying again.") # TerminatingError thrown
         }
     }
 
@@ -1014,7 +894,7 @@ function run_uninstaller($manifest, $architecture, $dir) {
                 & $exe @arg
             } else {
                 $uninstalled = Invoke-ExternalCommand $exe $arg -Activity 'Running uninstaller...' -ContinueExitCodes $continue_exit_codes
-                if (!$uninstalled) { throw [ScoopException] 'Uninstallation aborted.' } # TerminatingError thrown
+                if (!$uninstalled) { throw [ScoopException]::new('Uninstallation aborted.') } # TerminatingError thrown
             }
         }
     }
@@ -1041,7 +921,7 @@ function create_shims($manifest, $dir, $global, $arch) {
             $bin = search_in_path $target
         }
 
-        if (!$bin) { throw [ScoopException] "Shim creation fail|-Cannot shim '$target': File does not exist" } # TerminatingError thrown
+        if (!$bin) { throw [ScoopException]::new("Shim creation fail|-Cannot shim '$target': File does not exist") } # TerminatingError thrown
 
         shim $bin $global $name (Invoke-VariableSubstitution -Entity $arg -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir })
     }
@@ -1096,17 +976,14 @@ function link_current($versiondir) {
     Write-UserMessage -Message "Linking $(friendly_path $currentdir) => $(friendly_path $versiondir)" -Output:$false
 
     if ($currentdir -eq $versiondir) {
-        throw [ScoopException] "Version 'current' is not allowed!" # TerminatingError thrown
+        throw [ScoopException]::new("Version 'current' is not allowed!") # TerminatingError thrown
     }
 
-    if (Test-Path $currentdir) {
-        # remove the junction
-        attrib -R /L $currentdir
-        & "$env:COMSPEC" /c rmdir $currentdir
+    if (Test-Path -LiteralPath $currentdir -PathType 'Container') {
+        Remove-DirectoryJunctionLink -LinkName $currentdir
     }
 
-    & "$env:COMSPEC" /c mklink /j $currentdir $versiondir | Out-Null
-    attrib $currentdir +R /L
+    New-DirectoryJunctionLink -Target $versiondir -LinkName $currentdir | Out-Null
 
     return $currentdir
 }
@@ -1123,11 +1000,7 @@ function unlink_current($versiondir) {
     if (Test-Path -LiteralPath $currentdir -PathType 'Container') {
         Write-UserMessage -Message "Unlinking $(friendly_path $currentdir)" -Output:$false
 
-        # remove read-only attribute on link
-        attrib $currentdir -R /L
-
-        # remove the junction
-        & "$env:COMSPEC" /c "rmdir `"$currentdir`""
+        Remove-DirectoryJunctionLink -LinkName $currentdir
 
         return $currentdir
     }
@@ -1135,8 +1008,12 @@ function unlink_current($versiondir) {
     return $versiondir
 }
 
+#region TODO: Extract lib/Installation.ps1 / lib/Environment.ps1
 # to undo after installers add to path so that scoop manifest can keep track of this instead
 function ensure_install_dir_not_in_path($dir, $global) {
+    # TODO: Properly handle unix
+    if ($SHOVEL_IS_UNIX) { return }
+
     $path = (env 'path' $global)
 
     $fixed, $removed = find_dir_or_subdir $path "$dir"
@@ -1167,6 +1044,12 @@ function find_dir_or_subdir($path, $dir) {
 }
 
 function env_add_path($manifest, $dir, $global, $arch) {
+    # TODO: Properly handle unix
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
+        return
+    }
+
     $env_add_path = arch_specific 'env_add_path' $manifest $arch
 
     if ($env_add_path) {
@@ -1175,7 +1058,7 @@ function env_add_path($manifest, $dir, $global, $arch) {
         $env_add_path | Where-Object { $_ } | ForEach-Object {
             $path_dir = Join-Path $dir $_
             if (!(is_in_dir $dir $path_dir)) {
-                throw [ScoopException] "Invalid manifest|-env_add_path '$_' is outside the app directory." # TerminatingError thrown
+                throw [ScoopException]::new("Invalid manifest|-env_add_path '$_' is outside the app directory.") # TerminatingError thrown
             }
             add_first_in_path $path_dir $global
         }
@@ -1183,6 +1066,12 @@ function env_add_path($manifest, $dir, $global, $arch) {
 }
 
 function env_rm_path($manifest, $dir, $global, $arch) {
+    # TODO: Properly handle unix
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
+        return
+    }
+
     $env_add_path = arch_specific 'env_add_path' $manifest $arch
     $env_add_path | Where-Object { $_ } | ForEach-Object {
         $path_dir = Join-Path $dir $_
@@ -1192,6 +1081,12 @@ function env_rm_path($manifest, $dir, $global, $arch) {
 }
 
 function env_set($manifest, $dir, $global, $arch) {
+    # TODO: Properly handle unix
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
+        return
+    }
+
     $env_set = arch_specific 'env_set' $manifest $arch
     if ($env_set) {
         $env_set | Get-Member -Member NoteProperty | ForEach-Object {
@@ -1202,7 +1097,14 @@ function env_set($manifest, $dir, $global, $arch) {
         }
     }
 }
+
 function env_rm($manifest, $global, $arch) {
+    # TODO: Properly handle unix
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
+        return
+    }
+
     $env_set = arch_specific 'env_set' $manifest $arch
     if ($env_set) {
         $env_set | Get-Member -Member NoteProperty | ForEach-Object {
@@ -1212,7 +1114,9 @@ function env_rm($manifest, $global, $arch) {
         }
     }
 }
+#endregion TODO: Extract lib/Installation.ps1 / lib/Environment.ps1
 
+# TODO: Move to Installation and rename
 function show_notes($manifest, $dir, $original_dir, $persist_dir) {
     if ($manifest.notes) {
         Write-UserMessage -Output:$false -Message @(
@@ -1223,45 +1127,7 @@ function show_notes($manifest, $dir, $original_dir, $persist_dir) {
     }
 }
 
-function all_installed($apps, $global) {
-    $apps | Where-Object {
-        $app, $null, $null = parse_app $_
-        installed $app $global
-    }
-}
-
-# returns (uninstalled, installed)
-function prune_installed($apps, $global) {
-    $installed = @(all_installed $apps $global)
-
-    $uninstalled = $apps | Where-Object { $installed -notcontains $_ }
-
-    return @($uninstalled), @($installed)
-}
-
-# check whether the app failed to install
-function failed($app, $global) {
-    if (is_directory (appdir $app $global)) {
-        return !(install_info $app (Select-CurrentVersion -App $app -Global:$global) $global)
-    } else {
-        return $false
-    }
-}
-
-function ensure_none_failed($apps, $global) {
-    $new = @()
-    foreach ($app in $apps) {
-        if (failed $app $global) {
-            Write-UserMessage -Message "'$app' install failed previously. Please uninstall it and try again." -Err
-            continue
-        } else {
-            $new += $app
-        }
-    }
-
-    return $new
-}
-
+# TODO: Move to Installation and rename
 function show_suggestions($suggested) {
     $installed_apps = (installed_apps $true) + (installed_apps $false)
 
@@ -1272,9 +1138,13 @@ function show_suggestions($suggested) {
 
             $fulfilled = $false
             foreach ($suggestion in $feature_suggestions) {
-                $suggested_app, $bucket, $null = parse_app $suggestion
+                try {
+                    $resolved = Resolve-ManifestInformation -ApplicationQuery $suggestion -Simple
+                } catch {
+                    continue
+                }
 
-                if ($installed_apps -contains $suggested_app) {
+                if ($installed_apps -contains $resolved.ApplicationName) {
                     $fulfilled = $true
                     break
                 }
@@ -1287,6 +1157,7 @@ function show_suggestions($suggested) {
     }
 }
 
+#region TODO: Extract lib/Persist.ps1
 # Persistent data
 function persist_def($persist) {
     if ($persist -is [Array]) {
@@ -1350,11 +1221,10 @@ function persist_data($manifest, $original_dir, $persist_dir) {
         # create link
         if (is_directory $target) {
             # target is a directory, create junction
-            & "$env:COMSPEC" /c "mklink /j `"$source`" `"$target`"" | Out-Null
-            attrib $source +R /L
+            New-DirectoryJunctionLink -LinkName $source -Target $target | Out-Null
         } else {
             # target is a file, create hard link
-            & "$env:COMSPEC" /c "mklink /h `"$source`" `"$target`"" | Out-Null
+            New-FileHardLink -LinkName $source -Target $target | Out-Null
         }
     }
 }
@@ -1366,13 +1236,10 @@ function unlink_persist_data($dir) {
             $filepath = $file.FullName
             # directory (junction)
             if ($file -is [System.IO.DirectoryInfo]) {
-                # remove read-only attribute on the link
-                attrib -R /L $filepath
-                # remove the junction
-                & "$env:COMSPEC" /c "rmdir /s /q `"$filepath`""
+                Remove-DirectoryJunctionLink -LinkName $filepath -Recurse
             } else {
                 # remove the hard link
-                & "$env:COMSPEC" /c "del `"$filepath`""
+                Remove-FileHardLink -LinkName $filepath
             }
         }
     }
@@ -1389,3 +1256,4 @@ function persist_permission($manifest, $global) {
         $acl | Set-Acl -Path $path
     }
 }
+#endregion TODO: Extract lib/Persist.ps1

@@ -21,8 +21,7 @@
     @('Helpers', 'New-IssuePrompt'),
     @('Applications', 'Get-InstalledApplicationInformation'),
     @('Dependencies', 'Resolve-DependsProperty'),
-    @('depends', 'script_deps'),
-    @('install', 'install_app'),
+    @('install', 'msi_installed'),
     @('manifest', 'Resolve-ManifestInformation'),
     @('Uninstall', 'Uninstall-ScoopApplication'),
     @('Update', 'Update-ScoopCoreClone'),
@@ -104,7 +103,7 @@ if (!$Applications) {
             ++$Problems
             $failedApplications += $out[0]
             debug $_.InvocationInfo
-            New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $out[0] -Bucket $out[2]
+            New-IssuePromptFromException -ExceptionMessage $_.Exception.Message -Application $out[0] -Bucket $out[2] -Version $_.Exception.Version
         }
     }
 }
