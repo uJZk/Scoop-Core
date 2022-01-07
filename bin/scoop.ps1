@@ -23,7 +23,7 @@ $ExitCode = 0
 # - No command passed
 # - -v or --version passed
 # On *nix --version is passed in $args instead of command
-$version = (($Command -eq '--version') -or ($args.Contains('--version'))) -or (!$Command -and ($args.Contains('-v')))
+$version = (($Command -eq '--version') -or ($args.Contains('--version'))) -or (!$Command -and ($args.Contains('-v'))) -or ($Command -eq 'version')
 
 # Scoop itself help should be shown only if explicitly asked:
 # - No version asked

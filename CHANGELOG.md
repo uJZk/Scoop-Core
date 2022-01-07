@@ -2,6 +2,9 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- Add `version` command as alias to `--version`
+    - `shovel version` produces same output as `shovel --version`
+
 ### 0.6.5-pre2
 
 🎉🎉 YAML typed manifest and archived manifest installation support 🎉🎉
