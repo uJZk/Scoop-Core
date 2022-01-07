@@ -17,7 +17,7 @@ local utilityParser = parser({'native', 'aria2'})
 local manifestFormatParser = parser({'json', 'yml', 'yaml'})
 local configOptions = parser({
     'core.useragent',
-
+    'commands.cat.defaultFormat',
 
 
     '7ZIPEXTRACT_USE_EXTERNAL' .. booleanParser,

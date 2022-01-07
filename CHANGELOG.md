@@ -2,7 +2,9 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
-- Present `core.useragent` config option
+- Present new config options:
+    - `commands.cat.defaultFormat`
+    - `core.useragent`
 - Add `version` command as alias to `--version`
     - `shovel version` produces same output as `shovel --version`
 

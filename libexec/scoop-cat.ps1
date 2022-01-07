@@ -27,7 +27,7 @@ $Options, $Applications, $_err = Resolve-GetOpt $args 'f:' 'format='
 if ($_err) { Stop-ScoopExecution -Message "scoop cat: $_err" -ExitCode 2 }
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
 
-$Format = $Options.f, $Options.format, 'json' | Where-Object { ! [String]::IsNullOrEmpty($_) } | Select-Object -First 1
+$Format = (get_config 'commands.cat.defaultFormat' $null), $Options.f, $Options.format, 'json' | Where-Object { ! [String]::IsNullOrEmpty($_) } | Select-Object -First 1
 if ($Format -notin $ALLOWED_MANIFEST_EXTENSION) { Stop-ScoopExecution -Message "Format '$Format' is not supported" -ExitCode 2 }
 
 foreach ($app in $Applications) {

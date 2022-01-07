@@ -13,6 +13,7 @@
         "body": [
             "@(",
             "    @('core', 'Test-ScoopDebugEnabled'),",
+            "    @('Config', 'Convert-ConfigOption'),",
             "    @('getopt', 'Resolve-GetOpt'),",
             "    @('help', 'scoop_help'),",
             "    @('Helpers', 'New-IssuePrompt'),",

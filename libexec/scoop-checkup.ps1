@@ -25,6 +25,7 @@ $Options, $null, $_err = Resolve-GetOpt $args
 if ($_err) { Stop-ScoopExecution -Message "scoop checkup: $_err" -ExitCode 2 }
 
 $Problems += !(Test-DiagShovelAdoption)
+$Problems += !(Test-ScoopConfigFile)
 $Problems += !(Test-DiagWindowsDefender)
 $Problems += !(Test-DiagWindowsDefender -Global)
 $Problems += !(Test-DiagBucket)
@@ -35,7 +36,6 @@ $Problems += !(Test-DiagDrive)
 $Problems += !(Test-DiagConfig)
 $Problems += !(Test-DiagCompletionRegistered)
 $Problems += !(Test-MainBranchAdoption)
-$Problems += !(Test-ScoopConfigFile)
 
 if ($Problems -gt 0) {
     Write-UserMessage -Message '', "Found $Problems potential $(pluralize $Problems 'problem' 'problems')." -Warning

@@ -7,6 +7,7 @@ Use 'Write-UserMessage -Warning' to highlight the issue, and follow up with the 
 @(
     @('core', 'Test-ScoopDebugEnabled'),
     @('Helpers', 'New-IssuePrompt'),
+    @('Config', 'Convert-ConfigOption'),
     @('buckets', 'Get-KnownBucket'),
     @('decompress', 'Expand-7zipArchive'),
     @('install', 'msi_installed'),
@@ -450,7 +451,7 @@ function Test-ScoopConfigFile {
     }
 
     $toFix = @()
-    foreach ($tc in 'rootPath', 'globalPath', 'cachePath') {
+    foreach ($tc in $SHOVEL_CONFIG_REMOVED) {
         $c = get_config $tc
         if ($c) {
             $toFix += $tc
@@ -463,6 +464,18 @@ function Test-ScoopConfigFile {
         Write-UserMessage -Message @(
             '  Fixable with running following commands:'
             ($toFix | ForEach-Object { "    shovel config rm '$_'" })
+        )
+    }
+
+    $migratedFix = @()
+    foreach ($dep in $SHOVEL_CONFIG_DEPRECATED) {
+        $old, $new = $dep
+    }
+    if ($migratedFix.Count -gt 0) {
+        Write-UserMessage -Message 'Configuration options were changed to use unified format.' -Warn
+        Write-UserMessage -Message @(
+            '  Fixable with running any of the following commands:'
+            ('status', 'update' | ForEach-Object { "    shovel '$_'" })
         )
     }
 
