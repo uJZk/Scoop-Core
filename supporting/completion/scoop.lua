@@ -16,6 +16,10 @@ local architectureParser = parser({'32bit', '64bit', 'arm64'})
 local utilityParser = parser({'native', 'aria2'})
 local manifestFormatParser = parser({'json', 'yml', 'yaml'})
 local configOptions = parser({
+    'core.useragent',
+
+
+
     '7ZIPEXTRACT_USE_EXTERNAL' .. booleanParser,
     'aria2-enabled' .. booleanParser,
     'aria2-retry-wait',

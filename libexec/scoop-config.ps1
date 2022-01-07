@@ -34,6 +34,10 @@
 #       * An empty or unset value for proxy is equivalent to 'default' (with no username or password)
 #       * To bypass the system proxy and connect directly, use 'none' (with no username or password)
 #
+# core.useragent: Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Windows NT 10.0; Win64; x64)
+#   Allows to configure custom useragent string for all requests.
+#   Default is automatically composed based on the current PowerShell version and OS.
+#
 # default-architecture: 64bit|32bit|arm64
 #   Allows to configure preferred architecture for application installation.
 #   If not specified, architecture is determined automatically.
