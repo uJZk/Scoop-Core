@@ -907,6 +907,11 @@ function shim_def($item) {
 }
 
 function create_shims($manifest, $dir, $global, $arch) {
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Shimming is not supported on *nix' -Info
+        return
+    }
+
     $shims = @(arch_specific 'bin' $manifest $arch)
     $shims | Where-Object { $_ -ne $null } | ForEach-Object {
         $target, $name, $arg = shim_def $_
@@ -1247,6 +1252,8 @@ function unlink_persist_data($dir) {
 
 # check whether write permission for Users usergroup is set to global persist dir, if not then set
 function persist_permission($manifest, $global) {
+    if ($SHOVEL_IS_UNIX) { return }
+
     if ($global -and $manifest.persist -and (is_admin)) {
         $path = persistdir $null $global
         $user = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-545'

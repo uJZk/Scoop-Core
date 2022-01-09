@@ -604,7 +604,6 @@ function isFileLocked([string]$path) {
 function is_directory([String] $path) { return (Test-Path $path) -and (Get-Item $path) -is [System.IO.DirectoryInfo] }
 
 # Move content of directory into different directory
-# TODO: Monkey patch for Unix Ash258/Scoop-Core#103
 function movedir {
     [CmdletBinding()]
     param ($from, $to)
@@ -612,6 +611,11 @@ function movedir {
     $from = $from.TrimEnd('\')
     $parent = Split-Path $from -Parent
     $to = $to.TrimEnd('\')
+
+    if ($SHOVEL_IS_UNIX -or (get_config 'core.preferMoveItem' $false)) {
+        Get-ChildItem -LiteralPath $from -Recurse -Force | Move-Item -Destination $to
+        return
+    }
 
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo.FileName = 'robocopy.exe'

@@ -44,6 +44,11 @@
 # commands.cat.defaultFormat: yml|json
 #   Allows to configure preffered format of the manifest representation when using the `cat` command.
 #
+# core.preferMoveItem: $false|$true
+#   Specifies to use Move-Item cmdlet instead of robocopy.exe when moving files after extraction.
+#   Use with caution. 1:1 Parity with robocopy is not guaranteed.
+#   Default on *nix
+#
 # default-architecture: 64bit|32bit|arm64
 #   Allows to configure preferred architecture for application installation.
 #   If not specified, architecture is determined automatically.
