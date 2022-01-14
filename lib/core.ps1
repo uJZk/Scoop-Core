@@ -613,7 +613,9 @@ function movedir {
     $to = $to.TrimEnd('\')
 
     if ($SHOVEL_IS_UNIX -or (get_config 'core.preferMoveItem' $false)) {
+        Write-UserMessage -Message 'Skipping robocopy' -Info
         Get-ChildItem -LiteralPath $from -Recurse -Force | Move-Item -Destination $to
+        Remove-Item -LiteralPath $from -Force -Recurse
         return
     }
 
