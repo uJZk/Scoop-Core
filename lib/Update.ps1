@@ -115,10 +115,10 @@ function Update-ScoopLocalBucket {
             $loc = Find-BucketDirectory $b -Root
             $g = Join-Path $loc '.git'
 
-            # Make sure main bucket, which was downloaded as zip, will be properly "converted" into git
-            if (($b -eq 'main') -and !(Test-Path $g -PathType 'Container')) {
-                Remove-Bucket -Name 'main'
-                Add-Bucket -Name 'main'
+            # Make sure buckets, which were downloaded as zip, will be properly "converted" into git
+            if (($b -in 'main', 'Base') -and !(Test-Path -LiteralPath $g -PathType 'Container')) {
+                Remove-Bucket -Name $b
+                Add-Bucket -Name $b
             }
 
             # Skip not git repositories
