@@ -4,6 +4,7 @@
 
 - **Update**: Check git availability only if update is needed
 - Present new config options:
+    - `core.preferMoveItem`
     - `commands.cat.defaultFormat`
     - `core.useragent`
 - Add `version` command as alias to `--version`
