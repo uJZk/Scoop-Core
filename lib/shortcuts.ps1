@@ -11,12 +11,14 @@
 
 # Creates shortcut for the app in the start menu
 function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
+    $shortcuts = @(arch_specific 'shortcuts' $manifest $arch)
+    if ($shortcuts.Count -eq 0) { return }
+
     if ($SHOVEL_IS_UNIX) {
-        Write-UserMessage -Message 'Start menu shortcuts are not supported on *nix' -Info
+        Write-UserMessage -Message 'Creation of Start menu shortcuts is not supported on *nix' -Info
         return
     }
 
-    $shortcuts = @(arch_specific 'shortcuts' $manifest $arch)
     $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $target = [System.IO.Path]::Combine($dir, $_.item(0))
         $target = New-Object System.IO.FileInfo($target)
