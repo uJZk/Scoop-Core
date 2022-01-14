@@ -144,7 +144,13 @@ function Expand-7zipArchive {
         $argList = @('x', "`"$Path`"", "-o`"$DestinationPath`"", '-y')
         $isTar = ((strip_ext $Path) -match '\.tar$') -or ($Path -match '\.t[abgpx]z2?$')
 
-        if (!$isTar -and $ExtractDir) { $argList += "-ir!`"$ExtractDir\*`"" }
+        if (!$isTar -and $ExtractDir) {
+            if ($SHOVEL_IS_UNIX) {
+                $argList += "-ir`"`!$ExtractDir/*`""
+            } else {
+                $argList += "-ir!`"$ExtractDir\*`""
+            }
+        }
         if ($Switches) { $argList += (-split $Switches) }
 
         switch ($Overwrite) {
