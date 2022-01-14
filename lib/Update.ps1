@@ -171,11 +171,12 @@ function Update-Scoop {
     #>
     param([Switch] $CheckLastUpdate)
 
-    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
     # Skip updates if not needed
     if ($CheckLastUpdate -and ($false -eq (is_scoop_outdated))) {
         return
     }
+
+    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
 
     Write-UserMessage -Message 'Updating Scoop...' -Output
 
