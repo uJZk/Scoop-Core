@@ -115,10 +115,10 @@ function Update-ScoopLocalBucket {
             $loc = Find-BucketDirectory $b -Root
             $g = Join-Path $loc '.git'
 
-            # Make sure main bucket, which was downloaded as zip, will be properly "converted" into git
-            if (($b -eq 'main') -and !(Test-Path $g -PathType 'Container')) {
-                Remove-Bucket -Name 'main'
-                Add-Bucket -Name 'main'
+            # Make sure buckets, which were downloaded as zip, will be properly "converted" into git
+            if (($b -in 'main', 'Base') -and !(Test-Path $g -PathType 'Container')) {
+                Remove-Bucket -Name $b
+                Add-Bucket -Name $b
             }
 
             # Skip not git repositories
@@ -171,11 +171,12 @@ function Update-Scoop {
     #>
     param([Switch] $CheckLastUpdate)
 
-    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
     # Skip updates if not needed
     if ($CheckLastUpdate -and ($false -eq (is_scoop_outdated))) {
         return
     }
+
+    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
 
     Write-UserMessage -Message 'Updating Scoop...' -Output
 

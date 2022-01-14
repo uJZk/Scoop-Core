@@ -2,6 +2,7 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- **Update**: Check git availability only if update is needed
 - Present new config options:
     - `commands.cat.defaultFormat`
     - `core.useragent`
