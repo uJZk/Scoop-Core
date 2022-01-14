@@ -65,7 +65,7 @@ $CheckHash = !($Options.s -or $Options.skip)
 $Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
 
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
 Update-Scoop -CheckLastUpdate
 

@@ -320,6 +320,10 @@ function format($str, $hash) {
     $ExecutionContext.InvokeCommand.ExpandString($str)
 }
 function is_admin {
+    if ($SHOVEL_IS_UNIX) {
+        return (Invoke-SystemComSpecCommand -Unix 'id -u') -eq 0
+    }
+
     $admin = [System.Security.Principal.WindowsBuiltInRole]::Administrator
     $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 
@@ -1037,6 +1041,7 @@ $SCOOP_CONFIGURATION = load_cfg $SCOOP_CONFIGURATION_FILE
 # General variables
 $SHOVEL_DEBUG_ENABLED = Test-ScoopDebugEnabled
 $SHOVEL_IS_UNIX = Test-IsUnix
+$SHOVEL_IS_ADMIN = is_admin
 $SHOVEL_IS_ARM_ARCH = Test-IsArmArchitecture
 $SHOVEL_USERAGENT = Get-UserAgent
 

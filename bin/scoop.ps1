@@ -44,6 +44,7 @@ if ($version) {
     Write-UserMessage -Output -Message @(
         "PowerShell version: $($PSVersionTable.PSVersion)"
         "Useragent: $SHOVEL_USERAGENT"
+        "Administrator: $SHOVEL_IS_ADMIN"
         'Current Scoop (Shovel) version:'
     )
     Invoke-GitCmd -Command 'VersionLog' -Repository (versiondir 'scoop' 'current')

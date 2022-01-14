@@ -36,7 +36,7 @@ $Global = $Options.g -or $Options.global
 $Purge = $Options.p -or $Options.purge
 
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Administrator privileges are required to uninstall globally installed applications.' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Administrator privileges are required to uninstall globally installed applications.' -ExitCode 4 }
 
 if ($Applications -contains 'scoop') {
     & (Join-Path $PSScriptRoot '..\bin\uninstall.ps1') $Global $Purge

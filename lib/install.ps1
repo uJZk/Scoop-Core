@@ -1261,7 +1261,7 @@ function unlink_persist_data($dir) {
 function persist_permission($manifest, $global) {
     if ($SHOVEL_IS_UNIX) { return }
 
-    if ($global -and $manifest.persist -and (is_admin)) {
+    if ($global -and $manifest.persist -and $SHOVEL_IS_ADMIN) {
         $path = persistdir $null $global
         $user = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-545'
         $target_rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, 'Write', 'ObjectInherit', 'none', 'Allow')

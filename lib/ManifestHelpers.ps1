@@ -190,7 +190,7 @@ function Assert-Administrator {
     .SYNOPSIS
         Test administrator privileges.
     #>
-    if (!(is_admin)) { throw [ScoopException]::new('Administrator privileges are required') }
+    if (!$SHOVEL_IS_ADMIN) { throw [ScoopException]::new('Administrator privileges are required') }
 }
 
 function Assert-WindowsMinimalVersion {

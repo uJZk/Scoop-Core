@@ -91,7 +91,7 @@ foreach ($a in $Applications) {
         continue
     }
 
-    if ($gl -and !(is_admin)) {
+    if ($gl -and !$SHOVEL_IS_ADMIN) {
         Write-UserMessage -Message "'$app' ($version) is a installed globally. Admin privileges are required to reset it. Skipping" -Warning
         ++$Problems
         continue

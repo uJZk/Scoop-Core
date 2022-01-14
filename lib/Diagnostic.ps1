@@ -57,7 +57,7 @@ function Test-DiagWindowsDefender {
     if ($SHOVEL_IS_UNIX) { return $true }
 
     $defender = Get-Service -Name 'WinDefend' -ErrorAction 'SilentlyContinue'
-    if ((is_admin) -and ($defender -and $defender.Status) -and ($defender.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running)) {
+    if (($SHOVEL_IS_ADMIN) -and ($defender -and $defender.Status) -and ($defender.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running)) {
         if (Test-CommandAvailable -Command 'Get-MpPreference') {
             $installPath = if ($Global) { $SCOOP_GLOBAL_ROOT_DIRECTORY } else { $SCOOP_ROOT_DIRECTORY }
             $exclusionPath = (Get-MpPreference).ExclusionPath
