@@ -19,6 +19,13 @@ function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
         return
     }
 
+    # TODO: Investigate to better detect nanoserver
+    # TODO: Or is this better? Not sure what installations are also missing these definitions
+    if ($null -eq (shortcut_folder $global)) {
+        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
+        return
+    }
+
     $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $target = [System.IO.Path]::Combine($dir, $_.item(0))
         $target = New-Object System.IO.FileInfo($target)
@@ -41,11 +48,9 @@ function shortcut_folder($global) {
     $base = if ($global) { 'commonstartmenu' } else { 'startmenu' }
     $directory = [System.Environment]::GetFolderPath($base)
 
-    # TODO: Investigate to better detect nanoserver
-    # TODO: Or is this better? Not sure what installations are also missing this
     if ($null -eq $directory) {
         Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
-        return
+        return $null
     }
 
     $directory = Join-Path -Path $directory -ChildPath 'Programs\Scoop Apps'
@@ -85,9 +90,24 @@ function startmenu_shortcut([System.IO.FileInfo] $target, $shortcutName, $argume
 
 # Removes the Startmenu shortcut if it exists
 function rm_startmenu_shortcuts($manifest, $global, $arch) {
-    @(arch_specific 'shortcuts' $manifest $arch) | Where-Object { $null -ne $_ } | ForEach-Object {
+    $shortcuts = @(arch_specific 'shortcuts' $manifest $arch)
+    if ($shortcuts.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Deletion of Start menu shortcuts is not supported on *nix' -Info
+        return
+    }
+
+    $short = shortcut_folder $global
+    # TODO: Investigate to better detect nanoserver
+    if ($null -eq $short) {
+        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts deletion' -Warning
+        return
+    }
+
+    $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $name = $_.item(1)
-        $shortcut = shortcut_folder $global | Join-Path -ChildPath "$name.lnk"
+        $shortcut = Join-Path -Path $short -ChildPath "$name.lnk"
 
         Write-UserMessage -Message "Removing shortcut $(friendly_path $shortcut)"
 
