@@ -39,7 +39,16 @@ function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
 
 function shortcut_folder($global) {
     $base = if ($global) { 'commonstartmenu' } else { 'startmenu' }
-    $directory = [System.Environment]::GetFolderPath($base) | Join-Path -ChildPath 'Programs\Scoop Apps'
+    $directory = [System.Environment]::GetFolderPath($base)
+
+    # TODO: Investigate to better detect nanoserver
+    # TODO: Or is this better? Not sure what installations are also missing this
+    if ($null -eq $directory) {
+        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
+        return
+    }
+
+    $directory = Join-Path -Path $directory -ChildPath 'Programs\Scoop Apps'
 
     return Confirm-DirectoryExistence -LiteralPath $directory
 }
