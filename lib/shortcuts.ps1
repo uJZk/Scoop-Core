@@ -48,10 +48,7 @@ function shortcut_folder($global) {
     $base = if ($global) { 'commonstartmenu' } else { 'startmenu' }
     $directory = [System.Environment]::GetFolderPath($base)
 
-    if ([String]::IsNullOrEmpty($directory)) {
-        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
-        return $null
-    }
+    if ([String]::IsNullOrEmpty($directory)) { return $null }
 
     $directory = Join-Path -Path $directory -ChildPath 'Programs\Scoop Apps'
 
