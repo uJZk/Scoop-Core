@@ -41,6 +41,7 @@ $validCommand = $Command -and ($Command -in (commands))
 $commandHelp = !$scoopHelp -and $validCommand -and (($args.Contains('--help')) -or ($args.Contains('-h')))
 
 if ($version) {
+    # TODO: Printout architecture Architecture: detected (configured default)
     Write-UserMessage -Output -Message @(
         "PowerShell version: $($PSVersionTable.PSVersion)"
         "Useragent: $SHOVEL_USERAGENT"
