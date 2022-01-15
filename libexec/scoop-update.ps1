@@ -53,7 +53,7 @@ if (!$Applications) {
 
     Update-Scoop
 } else {
-    if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
+    if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
     Update-Scoop -CheckLastUpdate
 

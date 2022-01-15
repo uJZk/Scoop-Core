@@ -320,6 +320,10 @@ function format($str, $hash) {
     $ExecutionContext.InvokeCommand.ExpandString($str)
 }
 function is_admin {
+    if ($SHOVEL_IS_UNIX) {
+        return (Invoke-SystemComSpecCommand -Unix 'id -u') -like '0'
+    }
+
     $admin = [System.Security.Principal.WindowsBuiltInRole]::Administrator
     $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 
@@ -999,9 +1003,17 @@ function success($msg) { Write-UserMessage -Message $msg -Success }
 #       for all communication with api.github.com
 Optimize-SecurityProtocol
 
+if (!$env:SCOOP -and !$env:USERPROFILE) {
+    if ($env:HOME) {
+        $env:USERPROFILE = $env:HOME
+    } else {
+        Stop-ScoopExecution -Message "'USERPROFILE' or 'HOME' environment is not configured."
+    }
+}
+
 # Path gluing has to remain in these global variables to not fail in case user do not have some environment configured (most likely linux case)
 # Scoop root directory
-$SCOOP_ROOT_DIRECTORY = $env:SCOOP, "$env:USERPROFILE\scoop", "$env:HOME\scoop" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
+$SCOOP_ROOT_DIRECTORY = $env:SCOOP, "$env:USERPROFILE\scoop" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
 
 # Scoop global apps directory
 $SCOOP_GLOBAL_ROOT_DIRECTORY = $env:SCOOP_GLOBAL, "$env:ProgramData\scoop" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
@@ -1024,13 +1036,14 @@ $SCOOP_GLOBAL_MODULE_DIRECTORY = Join-Path $SCOOP_GLOBAL_ROOT_DIRECTORY 'modules
 $SHOVEL_GENERAL_MANIFESTS_DIRECTORY = Join-Path $SCOOP_ROOT_DIRECTORY 'manifests'
 
 # Load Scoop config
-$configHome = $env:XDG_CONFIG_HOME, "$env:USERPROFILE\.config", "$env:HOME\.config" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
+$configHome = $env:XDG_CONFIG_HOME, "$env:USERPROFILE\.config" | Where-Object { -not [String]::IsNullOrEmpty($_) } | Select-Object -First 1
 $SCOOP_CONFIGURATION_FILE = Join-Path $configHome 'scoop\config.json'
 $SCOOP_CONFIGURATION = load_cfg $SCOOP_CONFIGURATION_FILE
 
 # General variables
 $SHOVEL_DEBUG_ENABLED = Test-ScoopDebugEnabled
 $SHOVEL_IS_UNIX = Test-IsUnix
+$SHOVEL_IS_ADMIN = is_admin
 $SHOVEL_IS_ARM_ARCH = Test-IsArmArchitecture
 $SHOVEL_USERAGENT = Get-UserAgent
 

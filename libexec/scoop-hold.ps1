@@ -28,7 +28,7 @@ if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Us
 
 $Global = $Options.g -or $Options.global
 
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed applications' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed applications' -ExitCode 4 }
 
 foreach ($app in $Applications) {
     # Not at all installed
