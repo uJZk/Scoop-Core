@@ -19,8 +19,6 @@ function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
         return
     }
 
-    # TODO: Investigate to better detect nanoserver
-    # TODO: Or is this better? Not sure what installations are also missing these definitions
     if ($null -eq (shortcut_folder $global)) {
         Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
         return
@@ -95,16 +93,15 @@ function rm_startmenu_shortcuts($manifest, $global, $arch) {
         return
     }
 
-    $short = shortcut_folder $global
-    # TODO: Investigate to better detect nanoserver
-    if ($null -eq $short) {
+    $shortcutFolder = shortcut_folder $global
+    if ($null -eq $shortcutFolder) {
         Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts deletion' -Warning
         return
     }
 
     $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $name = $_.item(1)
-        $shortcut = Join-Path -Path $short -ChildPath "$name.lnk"
+        $shortcut = Join-Path -Path $shortcutFolder -ChildPath "$name.lnk"
 
         Write-UserMessage -Message "Removing shortcut $(friendly_path $shortcut)"
 
