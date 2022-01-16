@@ -810,6 +810,7 @@ function install_msi($fname, $dir, $msi) {
     if (!$installed) {
         throw [ScoopException]::new("Installation aborted. You might need to run 'scoop uninstall $app' before trying again.") # TerminatingError thrown
     }
+
     Remove-Item $logfile, $msifile
 }
 
@@ -918,7 +919,7 @@ function create_shims($manifest, $dir, $global, $arch) {
         return
     }
 
-    $shims | Where-Object { $_ -ne $null } | ForEach-Object {
+    $shims | Where-Object { $null -ne $_ } | ForEach-Object {
         $target, $name, $arg = shim_def $_
         Write-UserMessage -Message "Creating shim for '$name'." -Output:$false
 
@@ -955,8 +956,15 @@ function rm_shim($name, $shimdir) {
     }
 }
 
+# TODO: Properly handle unix
 function rm_shims($manifest, $global, $arch) {
     $shims = @(arch_specific 'bin' $manifest $arch)
+    if ($shims.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Shimming is not supported on *nix' -Info
+        return
+    }
 
     $shims | Where-Object { $_ -ne $null } | ForEach-Object {
         $target, $name, $null = shim_def $_
@@ -1134,7 +1142,7 @@ function show_notes($manifest, $dir, $original_dir, $persist_dir) {
     Write-UserMessage -Output:$false -Message @(
         'Notes'
         '-----'
-            (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
+        (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
     )
 }
 
@@ -1259,9 +1267,10 @@ function unlink_persist_data($dir) {
 
 # check whether write permission for Users usergroup is set to global persist dir, if not then set
 function persist_permission($manifest, $global) {
-    if ($SHOVEL_IS_UNIX) { return }
+    if (!$manifest.persist -or $SHOVEL_IS_UNIX) { return }
 
-    if ($global -and $manifest.persist -and $SHOVEL_IS_ADMIN) {
+    # TODO: Revert condition and return
+    if ($global -and $SHOVEL_IS_ADMIN) {
         $path = persistdir $null $global
         $user = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-545'
         $target_rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, 'Write', 'ObjectInherit', 'none', 'Allow')
