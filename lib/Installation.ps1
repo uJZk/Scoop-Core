@@ -10,6 +10,38 @@
     }
 }
 
+function Deny-MsiIntallationOnNanoServer {
+    # Check if system is nanoserver and msi installation is required. In that case it is not possible to proceed.
+    param($Manifest, $Architecture)
+
+    process {
+        # Currently there is no other way how to detect it other than checking the POWERSHELL_DISTRIBUTION_CHANNEL
+        # Since it is basically only one possible way how to get powershell up and running in nanoserver it is pretty solid.
+        # https://docs.microsoft.com/en-us/windows-server/get-started/getting-started-with-nano-server
+        # > Starting in Windows Server, version 1709, Nano Server will be available only as a container base OS image.
+        # POWERSHELL_DISTRIBUTION_CHANNEL = PSDocker-NanoServer-2004
+        if ($env:POWERSHELL_DISTRIBUTION_CHANNEL -and ($env:POWERSHELL_DISTRIBUTION_CHANNEL -notlike '*nanoserver*')) { return }
+
+        # Check filanames
+        $url = @(arch_specific 'url' $Manifest $Architecture)
+        foreach ($_u in $url) {
+            if ((url_filename $_u) -match '\.msi$') {
+                throw [ScoopException]::new('Nanoserver does not support manipulation with msi based installers') # TerminatingError thrown
+            }
+        }
+
+        # Check if Expand-MsiArchive is used manually
+        $pre_install = @(arch_specific 'pre_install' $Manifest $Architecture)
+        $installer = @((arch_specific 'installer' $Manifest $Architecture).script)
+        $post_install = @(arch_specific 'post_install' $Manifest $Architecture)
+
+        $all = $pre_install, $installer, $post_install
+        if ($all -like '*Expand-MsiArchive *') {
+            throw [ScoopException]::new('Nanoserver does not support manipulation with msi based installers') # TerminatingError thrown
+        }
+    }
+}
+
 function Install-ScoopApplication {
     [CmdletBinding()]
     param($ResolvedObject, [String] $Architecture, [Switch] $Global, $Suggested, [Switch] $UseCache, [Switch] $CheckHash)
@@ -33,6 +65,7 @@ function Install-ScoopApplication {
         }
 
         Deny-ArmInstallation -Manifest $manifest -Architecture $architecture
+        Deny-MsiIntallationOnNanoServer -Manifest $manifest -Architecture $Architecture
 
         $buc = if ($ResolvedObject.Bucket) { " [$($ResolvedObject.Bucket)]" } else { '' }
         $dep = if ($ResolvedObject.Dependency -ne $false) { " {Dependency for $($ResolvedObject.Dependency)}" } else { '' }
