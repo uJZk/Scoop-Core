@@ -89,6 +89,14 @@ function Test-ZstdRequirement {
 function _decompressErrorPrompt($path, $log) {
     return @("Decompress error|-Failed to extract files from $path.", 'Log file:', "  $(friendly_path $log)") -join "`n"
 }
+
+function Test-TarAchive {
+    param([String] $Path)
+
+    process {
+        return ((strip_ext $Path) -match '\.tar$') -or ($Path -match '\.t[abgpx]z2?$')
+    }
+}
 #endregion helpers
 
 function Expand-7zipArchive {
@@ -111,10 +119,11 @@ function Expand-7zipArchive {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
+        # TODO: Check wildcard support
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
-        [String] $DestinationPath = (Split-Path $Path),
+        [Alias('ExtractTo', 'Target')]
+        [String] $DestinationPath,
         [String] $ExtractDir,
         [Parameter(ValueFromRemainingArguments)]
         [String] $Switches,
@@ -124,6 +133,8 @@ function Expand-7zipArchive {
     )
 
     begin {
+        if (!$DestinationPath) { $DestinationPath = Split-Path $Path -Parent }
+
         if (get_config '7ZIPEXTRACT_USE_EXTERNAL' $false) {
             try {
                 $7zPath = (Get-Command '7z' -CommandType 'Application' -ErrorAction 'Stop' | Select-Object -First 1).Source
@@ -142,7 +153,7 @@ function Expand-7zipArchive {
     process {
         $logPath = Split-Path $Path -Parent | Join-Path -ChildPath '7zip.log'
         $argList = @('x', "`"$Path`"", "-o`"$DestinationPath`"", '-y')
-        $isTar = ((strip_ext $Path) -match '\.tar$') -or ($Path -match '\.t[abgpx]z2?$')
+        $isTar = Test-TarAchive -Name $Path
 
         if (!$isTar -and $ExtractDir) { $argList += "-ir!`"$ExtractDir\*`"" }
         if ($Switches) { $argList += (-split $Switches) }
@@ -202,10 +213,11 @@ function Expand-MsiArchive {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
+        # TODO: Check wildcard support
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
-        [String] $DestinationPath = (Split-Path $Path),
+        [Alias('ExtractTo', 'Target')]
+        [String] $DestinationPath,
         [String] $ExtractDir,
         [Parameter(ValueFromRemainingArguments)]
         [String] $Switches,
@@ -213,7 +225,9 @@ function Expand-MsiArchive {
     )
 
     process {
+        if (!$DestinationPath) { $DestinationPath = Split-Path $Path -Parent }
         $DestinationPath = $DestinationPath.TrimEnd('\')
+
         if ($ExtractDir) {
             $originalDestination = $DestinationPath
             $DestinationPath = Join-Path $DestinationPath '_tmp'
@@ -276,10 +290,11 @@ function Expand-InnoArchive {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
+        # TODO: Check wildcard support
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
-        [String] $DestinationPath = (Split-Path $Path),
+        [Alias('ExtractTo', 'Target')]
+        [String] $DestinationPath,
         [String] $ExtractDir,
         [Parameter(ValueFromRemainingArguments)]
         [String] $Switches,
@@ -288,7 +303,9 @@ function Expand-InnoArchive {
     )
 
     process {
+        if (!$DestinationPath) { $DestinationPath = Split-Path $Path -Parent }
         $DestinationPath = $DestinationPath.TrimEnd('\').TrimEnd('/')
+
         $isInnoextract = (get_config 'INNOSETUP_USE_INNOEXTRACT' $false) -or $UseInnoextract
         if ($isInnoextract) {
             Write-UserMessage -Message 'Using innoextract is experimental' -Warning
@@ -364,54 +381,32 @@ function Expand-ZipArchive {
     #>
     [CmdletBinding()]
     param (
+        # TODO: Check wildcard support
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
-        [String] $DestinationPath = (Split-Path $Path),
+        [Alias('ExtractTo', 'Target')]
+        [String] $DestinationPath,
         [String] $ExtractDir,
         [Switch] $Removal
     )
 
     process {
+        if (!$DestinationPath) { $DestinationPath = Split-Path $Path -Parent }
+
         if ($ExtractDir) {
             $originalDestination = $DestinationPath
             $DestinationPath = Join-Path $DestinationPath '_tmp'
         }
 
-        # All methods to unzip the file require .NET4.5+
-        if ($PSVersionTable.PSVersion.Major -lt 5) {
-            Add-Type -AssemblyName System.IO.Compression.FileSystem
-            try {
-                [System.IO.Compression.ZipFile]::ExtractToDirectory($Path, $DestinationPath)
-            } catch [System.IO.PathTooLongException] {
-                # Try to fall back to 7zip if path is too long
-                if (Test-HelperInstalled -Helper '7zip') {
-                    Expand-7zipArchive $Path $DestinationPath -Removal:$Removal
-                    return
-                } else {
-                    throw [ScoopException]::new("Unzip failed: Windows cannot handle long paths in this zip file.`nInstall 7zip and try again.") # TerminatingError thrown
-                }
-            } catch [System.IO.IOException] {
-                if (Test-HelperInstalled -Helper '7zip') {
-                    Expand-7zipArchive $Path $DestinationPath -Removal:$Removal
-                    return
-                } else {
-                    throw [ScoopException]::new("Unzip failed: Windows cannot handle the file names in this zip file.`nInstall 7zip and try again.") # TerminatingError thrown
-                }
-            } catch {
-                throw [ScoopException]::new("Decompress error|-Unzip failed: $_") # TerminatingError thrown
-            }
-        } else {
-            # Use Expand-Archive to unzip in PowerShell 5+
-            # Compatible with Pscx (https://github.com/Pscx/Pscx)
-            Microsoft.PowerShell.Archive\Expand-Archive -Path $Path -DestinationPath $DestinationPath -Force
-        }
+        # Compatible with Pscx (https://github.com/Pscx/Pscx)
+        Microsoft.PowerShell.Archive\Expand-Archive -Path $Path -DestinationPath $DestinationPath -Force
 
         if ($ExtractDir) {
             movedir (Join-Path $DestinationPath $ExtractDir) $originalDestination | Out-Null
             Remove-Item $DestinationPath -Recurse -Force
         }
+
         # Remove original archive file
         if ($Removal) { Remove-Item $Path -Force }
     }
@@ -433,16 +428,19 @@ function Expand-DarkArchive {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
+        # TODO: Check wildcard support
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
-        [String] $DestinationPath = (Split-Path $Path),
-        [Parameter(ValueFromRemainingArguments = $true)]
+        [Alias('ExtractTo', 'Target')]
+        [String] $DestinationPath,
+        [Parameter(ValueFromRemainingArguments)]
         [String] $Switches,
         [Switch] $Removal
     )
 
     process {
+        if (!$DestinationPath) { $DestinationPath = Split-Path $Path -Parent }
+
         $logPath = Split-Path $Path -Parent | Join-Path -ChildPath 'dark.log'
         $argList = @('-nologo', "-x `"$DestinationPath`"", "`"$Path`"")
         if ($Switches) { $argList += (-split $Switches) }
@@ -486,9 +484,10 @@ function Expand-ZstdArchive {
     [CmdletBinding()]
     param (
         [Parameter(Mandatory, Position = 0, ValueFromPipeline)]
+        # TODO: Check wildcard support
         [String] $Path,
         [Parameter(Position = 1)]
-        [Alias('ExtractTo')]
+        [Alias('ExtractTo', 'Target')]
         [String] $DestinationPath,
         [String] $ExtractDir,
         [Parameter(ValueFromRemainingArguments)]
@@ -516,7 +515,8 @@ function Expand-ZstdArchive {
         $_output = Join-Path $_dest $_item.BaseName
 
         $_arg = $argList
-        $_arg += """$_path""", '-o', """$_output"""
+        if ($Removal) { $_arg += '--rm' }
+        $_arg += "`"$_path`"", '-o', "`"$_output`""
 
         Confirm-DirectoryExistence -LiteralPath $_dest | Out-Null
         $status = Invoke-ExternalCommand -Path $zstdPath -ArgumentList $_arg -LogPath $_log
@@ -526,18 +526,13 @@ function Expand-ZstdArchive {
 
         Remove-Item -Path $_log -ErrorAction 'SilentlyContinue' -Force
 
-        # There is no reason to consider that the output of zstd is something other then next archive, but who knows
-        if (!$Skip7zip) {
-            try {
-                Expand-7zipArchive -Path $_output -DestinationPath $_dest -ExtractDir $_extractDir -Removal
-            } catch {
-                # TODO?: Some meaningfull message??
-                throw $_
-            }
-        }
-    }
+        $isTar = Test-TarAchive -Path $_path
+        if ($Skip7zip -or !$isTar) { return }
 
-    end {
-        if ($Removal) { Remove-Item -Path $Path -Force }
+        try {
+            Expand-7zipArchive -Path $_output -DestinationPath $_dest -ExtractDir $_extractDir -Removal
+        } catch {
+            throw $_
+        }
     }
 }

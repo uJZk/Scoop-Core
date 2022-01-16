@@ -108,6 +108,9 @@ function Get-AppFilePath {
         [String] $File
     )
 
+    # Monkey patch *unix
+    if ($SHOVEL_IS_UNIX) { $File = $File -replace '\.exe' }
+
     # Normal path to file
     $path = versiondir $App (Select-CurrentVersion -AppName $App) $false | Join-Path -ChildPath $File
     if (Test-Path -LiteralPath $path -PathType 'Leaf') { return $path }
