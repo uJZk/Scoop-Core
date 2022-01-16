@@ -807,8 +807,8 @@ function install_msi($fname, $dir, $msi) {
     if (!$installed) {
         throw [ScoopException]::new("Installation aborted. You might need to run 'scoop uninstall $app' before trying again.") # TerminatingError thrown
     }
-    Remove-Item $logfile
-    Remove-Item $msifile
+
+    Remove-Item $logfile, $msifile
 }
 
 # deprecated
@@ -906,9 +906,17 @@ function shim_def($item) {
     return $item, (strip_ext (fname $item)), $null
 }
 
+# TODO: Properly handle unix
 function create_shims($manifest, $dir, $global, $arch) {
     $shims = @(arch_specific 'bin' $manifest $arch)
-    $shims | Where-Object { $_ -ne $null } | ForEach-Object {
+    if ($shims.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Shimming is not supported on *nix' -Info
+        return
+    }
+
+    $shims | Where-Object { $null -ne $_ } | ForEach-Object {
         $target, $name, $arg = shim_def $_
         Write-UserMessage -Message "Creating shim for '$name'." -Output:$false
 
@@ -945,8 +953,15 @@ function rm_shim($name, $shimdir) {
     }
 }
 
+# TODO: Properly handle unix
 function rm_shims($manifest, $global, $arch) {
     $shims = @(arch_specific 'bin' $manifest $arch)
+    if ($shims.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Shimming is not supported on *nix' -Info
+        return
+    }
 
     $shims | Where-Object { $_ -ne $null } | ForEach-Object {
         $target, $name, $null = shim_def $_
@@ -1010,8 +1025,8 @@ function unlink_current($versiondir) {
 
 #region TODO: Extract lib/Installation.ps1 / lib/Environment.ps1
 # to undo after installers add to path so that scoop manifest can keep track of this instead
+# TODO: Properly handle unix
 function ensure_install_dir_not_in_path($dir, $global) {
-    # TODO: Properly handle unix
     if ($SHOVEL_IS_UNIX) { return }
 
     $path = (env 'path' $global)
@@ -1043,36 +1058,37 @@ function find_dir_or_subdir($path, $dir) {
     return [string]::join(';', $fixed), $removed
 }
 
+# TODO: Properly handle unix
 function env_add_path($manifest, $dir, $global, $arch) {
-    # TODO: Properly handle unix
+    $env_add_path = @(arch_specific 'env_add_path' $manifest $arch)
+    if ($env_add_path.Count -eq 0) { return }
+
     if ($SHOVEL_IS_UNIX) {
         Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
         return
     }
 
-    $env_add_path = arch_specific 'env_add_path' $manifest $arch
-
-    if ($env_add_path) {
-        # Reverse the path
-        [Array]::Reverse($env_add_path)
-        $env_add_path | Where-Object { $_ } | ForEach-Object {
-            $path_dir = Join-Path $dir $_
-            if (!(is_in_dir $dir $path_dir)) {
-                throw [ScoopException]::new("Invalid manifest|-env_add_path '$_' is outside the app directory.") # TerminatingError thrown
-            }
-            add_first_in_path $path_dir $global
+    # Reverse the path
+    [Array]::Reverse($env_add_path)
+    $env_add_path | Where-Object { $_ } | ForEach-Object {
+        $path_dir = Join-Path $dir $_
+        if (!(is_in_dir $dir $path_dir)) {
+            throw [ScoopException]::new("Invalid manifest|-env_add_path '$_' is outside the app directory.") # TerminatingError thrown
         }
+        add_first_in_path $path_dir $global
     }
 }
 
+# TODO: Properly handle unix
 function env_rm_path($manifest, $dir, $global, $arch) {
-    # TODO: Properly handle unix
+    $env_add_path = @(arch_specific 'env_add_path' $manifest $arch)
+    if ($env_add_path.Count -eq 0) { return }
+
     if ($SHOVEL_IS_UNIX) {
         Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
         return
     }
 
-    $env_add_path = arch_specific 'env_add_path' $manifest $arch
     $env_add_path | Where-Object { $_ } | ForEach-Object {
         $path_dir = Join-Path $dir $_
 
@@ -1080,51 +1096,51 @@ function env_rm_path($manifest, $dir, $global, $arch) {
     }
 }
 
+# TODO: Properly handle unix
 function env_set($manifest, $dir, $global, $arch) {
-    # TODO: Properly handle unix
+    $env_set = arch_specific 'env_set' $manifest $arch
+    if (!$env_set) { return }
+
     if ($SHOVEL_IS_UNIX) {
         Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
         return
     }
 
-    $env_set = arch_specific 'env_set' $manifest $arch
-    if ($env_set) {
-        $env_set | Get-Member -Member NoteProperty | ForEach-Object {
-            $name = $_.name;
-            $val = format $env_set.$($_.name) @{ 'dir' = $dir }
-            env $name $global $val
-            Set-Content env:\$name $val
-        }
+    $env_set | Get-Member -Member 'NoteProperty' | ForEach-Object {
+        $name = $_.name;
+        $val = format $env_set.$($_.name) @{ 'dir' = $dir }
+        env $name $global $val
+        Set-Content env:\$name $val
     }
 }
 
+# TODO: Properly handle unix
 function env_rm($manifest, $global, $arch) {
-    # TODO: Properly handle unix
+    $env_set = arch_specific 'env_set' $manifest $arch
+    if (!$env_set) { return }
+
     if ($SHOVEL_IS_UNIX) {
         Write-UserMessage -Message 'Environment variable manipulations are not supported on *nix' -Info
         return
     }
 
-    $env_set = arch_specific 'env_set' $manifest $arch
-    if ($env_set) {
-        $env_set | Get-Member -Member NoteProperty | ForEach-Object {
-            $name = $_.name
-            env $name $global $null
-            if (Test-Path env:\$name) { Remove-Item env:\$name }
-        }
+    $env_set | Get-Member -Member 'NoteProperty' | ForEach-Object {
+        $name = $_.name
+        env $name $global $null
+        if (Test-Path env:\$name) { Remove-Item env:\$name }
     }
 }
 #endregion TODO: Extract lib/Installation.ps1 / lib/Environment.ps1
 
 # TODO: Move to Installation and rename
 function show_notes($manifest, $dir, $original_dir, $persist_dir) {
-    if ($manifest.notes) {
-        Write-UserMessage -Output:$false -Message @(
-            'Notes'
-            '-----'
-            (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
-        )
-    }
+    if (!$manifest.notes) { return }
+
+    Write-UserMessage -Output:$false -Message @(
+        'Notes'
+        '-----'
+        (wraptext (Invoke-VariableSubstitution -Entity $manifest.notes -Substitutes @{ '$dir' = $dir; '$original_dir' = $original_dir; '$persist_dir' = $persist_dir }))
+    )
 }
 
 # TODO: Move to Installation and rename
@@ -1231,6 +1247,7 @@ function persist_data($manifest, $original_dir, $persist_dir) {
 
 function unlink_persist_data($dir) {
     # unlink all junction / hard link in the directory
+    # TODO: Adopt where-object
     foreach ($file in Get-ChildItem -Recurse $dir) {
         if ($null -ne $file.LinkType) {
             $filepath = $file.FullName
@@ -1247,7 +1264,10 @@ function unlink_persist_data($dir) {
 
 # check whether write permission for Users usergroup is set to global persist dir, if not then set
 function persist_permission($manifest, $global) {
-    if ($global -and $manifest.persist -and $SHOVEL_IS_ADMIN) {
+    if (!$manifest.persist -or $SHOVEL_IS_UNIX) { return }
+
+    # TODO: Revert condition and return
+    if ($global -and $SHOVEL_IS_ADMIN) {
         $path = persistdir $null $global
         $user = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-545'
         $target_rule = New-Object System.Security.AccessControl.FileSystemAccessRule($user, 'Write', 'ObjectInherit', 'none', 'Allow')

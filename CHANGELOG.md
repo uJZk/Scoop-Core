@@ -2,6 +2,7 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- Print not supported message only if operation will be executed
 - Prevent repeating administrator checks
     - Support check for administrator on *nix
 - **Update**: Check git availability only if update is needed
