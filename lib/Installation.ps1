@@ -105,20 +105,6 @@ function Install-ScoopApplication {
             Write-UserMessage -Message 'Manifest explicitly supports arm64. Consider to install using arm64 version to achieve best compatibility/performance.' -Success
         }
 
-        # Check if nanoserver and msi installation
-        # Currently there is no other way how to detect it other than checking the POWERSHELL_DISTRIBUTION_CHANNEL
-        # Since it is basically only one possible way how to get powershell up and running in nanoserver it is pretty solid.
-        # > Starting in Windows Server, version 1709, Nano Server will be available only as a container base OS image.
-        # > Check out Changes to Nano Server to learn what this means.
-        if ($env:POWERSHELL_DISTRIBUTION_CHANNEL -and $env:POWERSHELL_DISTRIBUTION_CHANNEL -like '*nanoserver*') {
-            $ur = arch_specific 'url' $manifest $Architecture
-            foreach ($_u in $ur) {
-                if ((url_filename $_u) -match '\.msi$') {
-                    throw [ScoopException]::new('Nanoserver does not support manipulation with msi based installers') # TerminatingError thrown
-                }
-            }
-        }
-
         # Download and extraction
         Invoke-ManifestScript -Manifest $manifest -ScriptName 'pre_download' -Architecture $Architecture
         # TODOOOOOOOOOO: Extract to better function
