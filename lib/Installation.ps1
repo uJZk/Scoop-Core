@@ -20,7 +20,7 @@ function Deny-MsiIntallationOnNanoServer {
         # https://docs.microsoft.com/en-us/windows-server/get-started/getting-started-with-nano-server
         # > Starting in Windows Server, version 1709, Nano Server will be available only as a container base OS image.
         # POWERSHELL_DISTRIBUTION_CHANNEL = PSDocker-NanoServer-2004
-        if ($env:POWERSHELL_DISTRIBUTION_CHANNEL -and ($env:POWERSHELL_DISTRIBUTION_CHANNEL -notlike '*nanoserver*')) { return }
+        if (!$env:POWERSHELL_DISTRIBUTION_CHANNEL -or ($env:POWERSHELL_DISTRIBUTION_CHANNEL -notlike '*-NanoServer-*')) { return }
 
         # Check filanames
         $url = @(arch_specific 'url' $Manifest $Architecture)
