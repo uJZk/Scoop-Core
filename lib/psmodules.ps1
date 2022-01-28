@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedPsmodules__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing psmodules'
+}
+$__importedPsmodules__ = $false
+
+'core', 'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function install_psmodule($manifest, $dir, $global) {
@@ -69,3 +70,5 @@ function ensure_in_psmodulepath($dir, $global) {
         $env:psmodulepath = "$dir;$env:psmodulepath" # for this session
     }
 }
+
+$__importedPsmodules__ = $true

@@ -1,17 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('autoupdate', 'Invoke-Autoupdate'),
-    @('buckets', 'Get-KnownBucket'),
-    @('decompress', 'Expand-7zipArchive'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Versions', 'Clear-InstalledVersion'),
-    @('ManifestHelpers', 'Test-Persistence')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedInstall__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing install'
+}
+$__importedInstall__ = $false
+
+'core', 'Helpers', 'autoupdate', 'buckets', 'decompress', 'manifest', 'Versions', 'ManifestHelpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Deny-ArmInstallation {
@@ -1277,3 +1272,5 @@ function persist_permission($manifest, $global) {
     }
 }
 #endregion TODO: Extract lib/Persist.ps1
+
+$__importedInstall__ = $true

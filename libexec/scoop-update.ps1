@@ -14,23 +14,8 @@
 #   -s, --skip                Skip hash validation (use with caution!).
 #   -q, --quiet               Hide extraneous messages.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Applications', 'Get-InstalledApplicationInformation'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Uninstall', 'Uninstall-ScoopApplication'),
-    @('Update', 'Update-ScoopCoreClone'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'Applications', 'Dependencies', 'install', 'manifest', 'Uninstall', 'Update', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 $ExitCode = 0

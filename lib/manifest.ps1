@@ -1,14 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('autoupdate', 'Invoke-Autoupdate'),
-    @('buckets', 'Get-KnownBucket'),
-    @('json', 'ConvertToPrettyJson')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedManifest__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing manifest'
+}
+$__importedManifest__ = $false
+
+'core', 'Helpers', 'autoupdate', 'buckets', 'json' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $ALLOWED_MANIFEST_EXTENSION = @('json', 'yaml', 'yml')
@@ -688,3 +686,5 @@ function msi($manifest, $arch) { arch_specific 'msi' $manifest $arch }
 function hash($manifest, $arch) { arch_specific 'hash' $manifest $arch }
 function extract_dir($manifest, $arch) { arch_specific 'extract_dir' $manifest $arch }
 function extract_to($manifest, $arch) { arch_specific 'extract_to' $manifest $arch }
+
+$__importedManifest__ = $true

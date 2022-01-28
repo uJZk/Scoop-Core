@@ -29,18 +29,8 @@
 #                                   This requires you to configure your virustotal_api_key (see help entry for config command).
 #   -i, --independent               By default, all dependencies are checked. Use this parameter check only the application without dependencies.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('VirusTotal', 'Search-VirusTotal')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'Dependencies', 'VirusTotal' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 # TODO: Drop --scan??

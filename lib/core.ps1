@@ -1,11 +1,12 @@
-@(
-    @('Helpers', 'New-IssuePrompt'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedCore__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing core'
+}
+$__importedCore__ = $false
+
+'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 # Such format is need to prevent automatic conversion of JSON date https://github.com/Ash258/Scoop-Core/issues/26
@@ -1065,3 +1066,5 @@ $PSNativeCommandArgumentPassing = 'Legacy'
 # Setup proxy globally
 setup_proxy
 #endregion Main
+
+$__importedCore__ = $true

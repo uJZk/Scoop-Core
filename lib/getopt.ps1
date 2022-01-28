@@ -1,3 +1,10 @@
+if ($__importedGetopt__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing getopt'
+}
+$__importedGetopt__ = $false
+
 # adapted from http://hg.python.org/cpython/file/2.7/Lib/getopt.py
 # argv:
 #    array of arguments
@@ -73,3 +80,5 @@ function Resolve-GetOpt($argv, $shortopts, $longopts) {
 
     return $opts, $rem
 }
+
+$__importedGetopt__ = $true

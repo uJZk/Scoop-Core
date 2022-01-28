@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedDecompress__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing decompress'
+}
+$__importedDecompress__ = $false
+
+'core', 'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 #region helpers
@@ -35,7 +36,7 @@ function Test-7zipRequirement {
         if (get_config '7ZIPEXTRACT_USE_EXTERNAL' $false) {
             return $false
         } else {
-            return ($URL | Where-Object { Test-7zipRequirement -File $_ }).Count -gt 0
+            return @($URL | Where-Object { Test-7zipRequirement -File $_ }).Count -gt 0
         }
     } else {
         return $File -match '\.((gz)|(tar)|(tgz)|(lzma)|(bz)|(bz2)|(7z)|(rar)|(iso)|(xz)|(lzh)|(nupkg))$'
@@ -60,7 +61,7 @@ function Test-LessmsiRequirement {
     if ($null -eq $URL) { return $false }
 
     if (get_config 'MSIEXTRACT_USE_LESSMSI' $true) {
-        return ($URL | Where-Object { $_ -match '\.msi$' }).Count -gt 0
+        return @($URL | Where-Object { $_ -match '\.msi$' }).Count -gt 0
     } else {
         return $false
     }
@@ -80,7 +81,7 @@ function Test-ZstdRequirement {
     if (!$File -and ($null -eq $URL)) { return $false }
 
     if ($URL) {
-        return ($URL | Where-Object { Test-ZstdRequirement -File $_ }).Count -gt 0
+        return @($URL | Where-Object { Test-ZstdRequirement -File $_ }).Count -gt 0
     } else {
         return $File -match '\.zst$'
     }
@@ -126,7 +127,7 @@ function Expand-7zipArchive {
     begin {
         if (get_config '7ZIPEXTRACT_USE_EXTERNAL' $false) {
             try {
-                $7zPath = (Get-Command '7z' -CommandType 'Application' -ErrorAction 'Stop' | Select-Object -First 1).Source
+                $7zPath = (Get-Command -Name '7z' -CommandType 'Application' -ErrorAction 'Stop' | Select-Object -First 1).Source
             } catch [System.Management.Automation.CommandNotFoundException] {
                 throw [ScoopException]::new((
                         "Cannot find external 7-Zip (7z.exe) while '7ZIPEXTRACT_USE_EXTERNAL' is 'true'!",
@@ -541,3 +542,5 @@ function Expand-ZstdArchive {
         if ($Removal) { Remove-Item -Path $Path -Force }
     }
 }
+
+$__importedDecompress__ = $true

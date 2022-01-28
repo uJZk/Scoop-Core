@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('core', 'Test-ScoopDebugEnabled')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedCache__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Cache'
+}
+$__importedCache__ = $false
+
+'core' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Get-CachedFileInfo {
@@ -22,7 +23,7 @@ function Get-CachedFileInfo {
         $app, $version, $url = $File.Name -split '#'
         $size = filesize $File.Length
 
-        return New-Object PSObject -Prop @{ 'app' = $app; 'version' = $version; 'url' = $url; 'size' = $size }
+        return New-Object PSObject -Property @{ 'app' = $app; 'version' = $version; 'url' = $url; 'size' = $size }
     }
 }
 
@@ -45,7 +46,7 @@ function Show-CachedFileList {
         $regex = $ApplicationFilter -join '|'
         if (!$ApplicationFilter) { $regex = '.*?' }
 
-        $files = Get-ChildItem -LiteralPath $SCOOP_CACHE_DIRECTORY -ErrorAction 'SilentlyContinue' -File | Where-Object -Property 'Name' -Match -Value "^($regex)#"
+        $files = @(Get-ChildItem -LiteralPath $SCOOP_CACHE_DIRECTORY -ErrorAction 'SilentlyContinue' -File | Where-Object -Property 'Name' -Match -Value "^($regex)#")
         $totalSize = [double] ($files | Measure-Object -Property 'Length' -Sum).Sum
 
         $_app = @{ 'Expression' = { "$($_.app) ($($_.version))" } }
@@ -56,3 +57,5 @@ function Show-CachedFileList {
         Write-Output "Total: $($files.Length) $(pluralize $files.Length 'file' 'files'), $(filesize $totalSize)"
     }
 }
+
+$__importedCache__ = $true

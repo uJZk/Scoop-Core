@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('core', 'Test-ScoopDebugEnabled')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedGit__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Git'
+}
+$__importedGit__ = $false
+
+'core' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Invoke-GitCmd {
@@ -83,3 +84,5 @@ function Invoke-GitCmd {
         Invoke-SystemComSpecCommand -Windows $commandToRunWindows -Unix $commandToRunNix
     }
 }
+
+$__importedGit__ = $true
