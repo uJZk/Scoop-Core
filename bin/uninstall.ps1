@@ -15,7 +15,7 @@ param(
     . (Join-Path $PSScriptRoot "..\lib\$_.ps1")
 }
 
-if ($global -and !(is_admin)) {
+if ($global -and !$SHOVEL_IS_ADMIN) {
     Stop-ScoopExecution -Message 'Admin privileges are required for globall uninstallation.' -ExitCode 4
 }
 

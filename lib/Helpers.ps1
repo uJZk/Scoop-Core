@@ -1,3 +1,10 @@
+if ($__importedHelpers__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Helpers'
+}
+$__importedHelpers__ = $false
+
 function Write-UserMessage {
     <#
     .SYNOPSIS
@@ -428,3 +435,5 @@ class ScoopException: System.Exception {
     }
 }
 #endregion Exceptions
+
+$__importedHelpers__ = $true

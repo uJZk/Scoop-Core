@@ -2,6 +2,21 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- Increase command startup
+- Prevent MSI installations in NanoServer images
+- Installation will not fail if `commonstartmenu` or `startmenu` system folder is not defined
+- Print not supported message only if operation will be executed
+- Prevent repeating administrator checks
+    - Support check for administrator on *nix
+- **Update**: Check git availability only if update is needed
+- Present new config options:
+    - `commands.cat.defaultFormat`
+    - `core.useragent`
+- Add `version` command as alias to `--version`
+    - `shovel version` produces same output as `shovel --version`
+
+### 0.6.5-pre2
+
 🎉🎉 YAML typed manifest and archived manifest installation support 🎉🎉
 
 - **scoop-search**: Add `-a`, `--api` paramters

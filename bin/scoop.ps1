@@ -23,7 +23,7 @@ $ExitCode = 0
 # - No command passed
 # - -v or --version passed
 # On *nix --version is passed in $args instead of command
-$version = (($Command -eq '--version') -or ($args.Contains('--version'))) -or (!$Command -and ($args.Contains('-v')))
+$version = (($Command -eq '--version') -or ($args.Contains('--version'))) -or (!$Command -and ($args.Contains('-v'))) -or ($Command -eq 'version')
 
 # Scoop itself help should be shown only if explicitly asked:
 # - No version asked
@@ -41,9 +41,11 @@ $validCommand = $Command -and ($Command -in (commands))
 $commandHelp = !$scoopHelp -and $validCommand -and (($args.Contains('--help')) -or ($args.Contains('-h')))
 
 if ($version) {
+    # TODO: Printout architecture Architecture: detected (configured default)
     Write-UserMessage -Output -Message @(
         "PowerShell version: $($PSVersionTable.PSVersion)"
         "Useragent: $SHOVEL_USERAGENT"
+        "Administrator: $SHOVEL_IS_ADMIN"
         'Current Scoop (Shovel) version:'
     )
     Invoke-GitCmd -Command 'VersionLog' -Repository (versiondir 'scoop' 'current')

@@ -1,13 +1,11 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('decompress', 'Expand-7zipArchive'),
-    @('install', 'msi_installed')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedDependencies__ -eq $true) {
+} else {
+    Write-Verbose 'Importing Dependencies'
+}
+$__importedDependencies__ = $false
+
+'core', 'Helpers', 'manifest', 'decompress', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Resolve-DependsProperty {
@@ -286,3 +284,5 @@ function Resolve-MultipleApplicationDependency {
         }
     }
 }
+
+$__importedDependencies__ = $true

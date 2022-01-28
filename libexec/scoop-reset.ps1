@@ -16,20 +16,8 @@
 # Options:
 #   -h, --help      Show help for this command.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('shortcuts', 'rm_startmenu_shortcuts'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'install', 'manifest', 'shortcuts', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 # TODO: Add --global
@@ -91,7 +79,7 @@ foreach ($a in $Applications) {
         continue
     }
 
-    if ($gl -and !(is_admin)) {
+    if ($gl -and !$SHOVEL_IS_ADMIN) {
         Write-UserMessage -Message "'$app' ($version) is a installed globally. Admin privileges are required to reset it. Skipping" -Warning
         ++$Problems
         continue

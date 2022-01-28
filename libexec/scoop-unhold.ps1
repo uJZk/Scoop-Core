@@ -5,17 +5,8 @@
 #   -h, --help           Show help for this command.
 #   -g, --global         Unhold globally installed application(s).
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Applications', 'Get-InstalledApplicationInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'Applications' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 $ExitCode = 0
@@ -27,7 +18,7 @@ if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Us
 
 $Global = $Options.g -or $Options.global
 
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed applications' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to interact with globally installed applications' -ExitCode 4 }
 
 foreach ($app in $Applications) {
     # Not at all installed

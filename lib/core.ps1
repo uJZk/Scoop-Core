@@ -1,11 +1,12 @@
-@(
-    @('Helpers', 'New-IssuePrompt'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedCore__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing core'
+}
+$__importedCore__ = $false
+
+'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 # Such format is need to prevent automatic conversion of JSON date https://github.com/Ash258/Scoop-Core/issues/26
@@ -48,6 +49,9 @@ function Optimize-SecurityProtocol {
 # Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Windows NT 10.0; Win64; x64; Core)
 # Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Linux; Linux 5.8.0-1032-raspi #35-Ubuntu SMP PREEMPT Wed Jul 14 10:51:21 UTC 2021;)
 function Get-UserAgent {
+    $conf = get_config 'core.useragent'
+    if ($conf) { return $conf }
+
     $shovel = 'Shovel/1.0 (+https://shovel.ash258.com)'
     $powershellVersion = "PowerShell/$($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
     $system = "Windows NT $([System.Environment]::OSVersion.Version)"
@@ -317,6 +321,10 @@ function format($str, $hash) {
     $ExecutionContext.InvokeCommand.ExpandString($str)
 }
 function is_admin {
+    if ($SHOVEL_IS_UNIX) {
+        return (Invoke-SystemComSpecCommand -Unix 'id -u') -like '0'
+    }
+
     $admin = [System.Security.Principal.WindowsBuiltInRole]::Administrator
     $id = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 
@@ -996,21 +1004,13 @@ function success($msg) { Write-UserMessage -Message $msg -Success }
 #       for all communication with api.github.com
 Optimize-SecurityProtocol
 
-# General variables
-$SHOVEL_DEBUG_ENABLED = Test-ScoopDebugEnabled
-$SHOVEL_IS_UNIX = Test-IsUnix
-$SHOVEL_IS_ARM_ARCH = Test-IsArmArchitecture
-$SHOVEL_USERAGENT = Get-UserAgent
-
-# TODO: Drop
-$c = get_config 'rootPath'
-if ($c) {
-    Write-UserMessage -Message 'Configuration option ''rootPath'' is deprecated. Configure ''SCOOP'' environment variable instead' -Err
-    if (!$env:SCOOP) { $env:SCOOP = $c }
+if (!$env:SCOOP -and !$env:USERPROFILE) {
+    if ($env:HOME) {
+        $env:USERPROFILE = $env:HOME
+    } else {
+        Stop-ScoopExecution -Message "'USERPROFILE' or 'HOME' environment is not configured."
+    }
 }
-
-# All supported architectures
-$SHOVEL_SUPPORTED_ARCHITECTURES = @('64bit', '32bit', 'arm64')
 
 # Path gluing has to remain in these global variables to not fail in case user do not have some environment configured (most likely linux case)
 # Scoop root directory
@@ -1041,6 +1041,16 @@ $configHome = $env:XDG_CONFIG_HOME, "$env:USERPROFILE\.config" | Where-Object { 
 $SCOOP_CONFIGURATION_FILE = Join-Path $configHome 'scoop\config.json'
 $SCOOP_CONFIGURATION = load_cfg $SCOOP_CONFIGURATION_FILE
 
+# General variables
+$SHOVEL_DEBUG_ENABLED = Test-ScoopDebugEnabled
+$SHOVEL_IS_UNIX = Test-IsUnix
+$SHOVEL_IS_ADMIN = is_admin
+$SHOVEL_IS_ARM_ARCH = Test-IsArmArchitecture
+$SHOVEL_USERAGENT = Get-UserAgent
+
+# All supported architectures
+$SHOVEL_SUPPORTED_ARCHITECTURES = @('64bit', '32bit', 'arm64')
+
 # TODO: Remove deprecated variables
 $scoopdir = $SCOOP_ROOT_DIRECTORY
 $globaldir = $SCOOP_GLOBAL_ROOT_DIRECTORY
@@ -1056,3 +1066,5 @@ $PSNativeCommandArgumentPassing = 'Legacy'
 # Setup proxy globally
 setup_proxy
 #endregion Main
+
+$__importedCore__ = $true

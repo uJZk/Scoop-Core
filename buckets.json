@@ -4,12 +4,11 @@
     "extras": "https://github.com/ScoopInstaller/Extras",
     "java": "https://github.com/ScoopInstaller/Java",
     "nerd-fonts": "https://github.com/matthewjberger/scoop-nerd-fonts",
-    "nirsoft": "https://github.com/Ash258/Scoop-NirSoft",
+    "sysinternals": "https://github.com/shovel-org/Sysinternals-Bucket",
+    "nirsoft": "https://github.com/shovel-org/NirSoft-Bucket",
     "jetbrains": "https://github.com/Ash258/Scoop-JetBrains",
-    "sysinternals": "https://github.com/Ash258/Scoop-SysInternals",
     "nonportable": "https://github.com/TheRandomLabs/scoop-nonportable",
     "games": "https://github.com/Calinou/scoop-games",
     "php": "https://github.com/ScoopInstaller/PHP",
-    "versions": "https://github.com/ScoopInstaller/Versions",
-    "nightlies": "https://github.com/ScoopInstaller/Nightlies"
+    "versions": "https://github.com/ScoopInstaller/Versions"
 }

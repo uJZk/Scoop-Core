@@ -1,12 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedManifestHelpers__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing ManifestHelpers'
+}
+$__importedManifestHelpers__ = $false
+
+'core', 'Helpers', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 #region Persistence
@@ -136,12 +136,12 @@ function Edit-File {
     }
 
     process {
-        if (!(Test-Path $File -PathType 'Leaf')) {
+        if (!(Test-Path -LiteralPath $File -PathType 'Leaf')) {
             Write-UserMessage -Message "File '$File' does not exist" -Err
             return
         }
 
-        $content = Get-Content $File
+        $content = Get-Content -LiteralPath $File
 
         for ($i = 0; $i -lt $Find.Count; ++$i) {
             $toFind = $Find[$i]
@@ -190,7 +190,7 @@ function Assert-Administrator {
     .SYNOPSIS
         Test administrator privileges.
     #>
-    if (!(is_admin)) { throw [ScoopException]::new('Administrator privileges are required') }
+    if (!$SHOVEL_IS_ADMIN) { throw [ScoopException]::new('Administrator privileges are required') }
 }
 
 function Assert-WindowsMinimalVersion {
@@ -225,3 +225,5 @@ function Assert-ScoopConfigValue {
     }
 }
 #endregion Asserts
+
+$__importedManifestHelpers__ = $true

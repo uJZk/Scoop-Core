@@ -1,12 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('json', 'ConvertToPrettyJson')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedAutoupdate__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing autoupdate'
+}
+$__importedAutoupdate__ = $false
+
+'core', 'Helpers', 'json' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function find_hash_in_rdf([String] $url, [String] $basename) {
@@ -473,3 +473,5 @@ function Invoke-Autoupdate ([String] $app, $dir, $json, [String] $version, [Hash
 
     return $newManifest
 }
+
+$__importedAutoupdate__ = $true

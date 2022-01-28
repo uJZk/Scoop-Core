@@ -9,21 +9,8 @@
 #   -g, --global       Perform cleanup on globally installed application(s). (Include them if '*' is used)
 #   -k, --cache        Remove outdated download cache. This will keep only the latest version cached.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Applications', 'Get-InstalledApplicationInformation'),
-    @('buckets', 'Get-KnownBucket'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'Applications', 'buckets', 'install', 'manifest', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 $ExitCode = 0
@@ -37,7 +24,7 @@ $Cache = $Options.k -or $Options.cache
 $Verbose = $true
 
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
 if ($Applications -eq '*') {
     $Verbose = $false

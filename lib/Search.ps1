@@ -1,14 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('buckets', 'Get-KnownBucket'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedSearch__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Search'
+}
+$__importedSearch__ = $false
+
+'core', 'Helpers', 'buckets', 'install', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $_breachedRateLimit = $false
@@ -31,8 +29,10 @@ function Test-GithubApiRateLimitBreached {
     if (!$script:_breachedRateLimit) {
         $h = @{}
         if ($null -ne $script:_token) { $h = @{ 'Headers' = @{ 'Authorization' = "token $($script:_token)" } } }
-        $githubRateLimit = (Invoke-RestMethod -Uri 'https://api.github.com/rate_limit' @h ).resources.core
+
+        $githubRateLimit = (Invoke-RestMethod -Uri 'https://api.github.com/rate_limit' @h).resources.core
         debug $githubRateLimit.remaining
+
         if ($githubRateLimit.remaining -eq 0) {
             $script:_breachedRateLimit = $true
             $limitResetOn = [System.Timezone]::CurrentTimeZone.ToLocalTime(([System.Datetime]'1/1/1970').AddSeconds($githubRateLimit.reset)).ToString()
@@ -274,3 +274,5 @@ function Search-RemoteAPI {
         return $final
     }
 }
+
+$__importedSearch__ = $true

@@ -1,13 +1,12 @@
+if ($__importedVirusTotal__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing VirusTotal'
+}
+$__importedVirusTotal__ = $false
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+'core', 'Helpers', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $VT_API_KEY = get_config 'virustotal_api_key'
@@ -96,7 +95,7 @@ function Search-VirusTotal {
     }
 
     if ($algorithm -notin 'md5', 'sha1', 'sha256') {
-        Write-UserMessage -Message "${App}: Unsopported hash algorithm $algorithm", 'Virustotal requires md5, sha1 or sha256' -Warning
+        Write-UserMessage -Message "${App}: Unsupported hash algorithm $algorithm", 'Virustotal requires md5, sha1 or sha256' -Warning
         return $VT_ERR.NoInfo
     }
 
@@ -214,3 +213,5 @@ function Submit-ToVirusTotal {
         return
     }
 }
+
+$__importedVirusTotal__ = $true

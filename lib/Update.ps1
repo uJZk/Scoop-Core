@@ -1,18 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('buckets', 'Get-KnownBucket'),
-    @('commands', 'Invoke-ScoopCommand'),
-    @('Git', 'Invoke-GitCmd'),
-    @('install', 'msi_installed'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('Installation', 'Install-ScoopApp'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedUpdate__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Update'
+}
+$__importedUpdate__ = $false
+
+'core', 'Helpers', 'buckets', 'commands', 'Git', 'install', 'Dependencies', 'Installation', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $DEFAULT_UPDATE_REPO = 'https://github.com/Ash258/Scoop-Core'
@@ -115,10 +109,10 @@ function Update-ScoopLocalBucket {
             $loc = Find-BucketDirectory $b -Root
             $g = Join-Path $loc '.git'
 
-            # Make sure main bucket, which was downloaded as zip, will be properly "converted" into git
-            if (($b -eq 'main') -and !(Test-Path $g -PathType 'Container')) {
-                Remove-Bucket -Name 'main'
-                Add-Bucket -Name 'main'
+            # Make sure buckets, which were downloaded as zip, will be properly "converted" into git
+            if (($b -in 'main', 'Base') -and !(Test-Path -LiteralPath $g -PathType 'Container')) {
+                Remove-Bucket -Name $b
+                Add-Bucket -Name $b
             }
 
             # Skip not git repositories
@@ -171,11 +165,12 @@ function Update-Scoop {
     #>
     param([Switch] $CheckLastUpdate)
 
-    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
     # Skip updates if not needed
     if ($CheckLastUpdate -and ($false -eq (is_scoop_outdated))) {
         return
     }
+
+    if (!(Test-CommandAvailable -Command 'git')) { Stop-ScoopExecution -Message 'Scoop uses Git to update itself. Run ''scoop install git'' and try again.' }
 
     Write-UserMessage -Message 'Updating Scoop...' -Output
 
@@ -403,3 +398,5 @@ function Update-App {
     Install-ScoopApplication -ResolvedObject $applicationToUpdate -Architecture $architecture -Global:$Global -Suggested:$Suggested `
         -UseCache:$useCache -CheckHash:$checkHash
 }
+
+$__importedUpdate__ = $true

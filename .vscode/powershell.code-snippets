@@ -7,12 +7,31 @@
             "$1",
         ],
     },
+    "New command": {
+        "prefix": "newCommand",
+        "scope": "powershell",
+        "body": [
+            "'core'$1 | ForEach-Object {",
+            "    . (Join-Path \\$PSScriptRoot \"..\\lib\\\\\\${_}.ps1\")",
+            "}",
+        ],
+    },
+    "New module": {
+        "prefix": "newModule",
+        "scope": "powershell",
+        "body": [
+            "'core'$1 | ForEach-Object {",
+            "    . (Join-Path \\$PSScriptRoot \"\\${_}.ps1\")",
+            "}",
+        ],
+    },
     "New Import": {
         "prefix": "importAllLibs",
         "scope": "powershell",
         "body": [
             "@(",
             "    @('core', 'Test-ScoopDebugEnabled'),",
+            "    @('Config', 'Convert-ConfigOption'),",
             "    @('getopt', 'Resolve-GetOpt'),",
             "    @('help', 'scoop_help'),",
             "    @('Helpers', 'New-IssuePrompt'),",

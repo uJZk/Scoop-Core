@@ -31,26 +31,8 @@
 #   -k, --no-cache                  Do not use the download cache.
 #   -s, --skip                      Skip hash validation (use with caution!).
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Applications', 'Get-InstalledApplicationInformation'),
-    @('buckets', 'Get-KnownBucket'),
-    @('decompress', 'Expand-7zipArchive'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('Installation', 'Install-Application'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('psmodules', 'install_psmodule'),
-    @('shortcuts', 'rm_startmenu_shortcuts'),
-    @('Update', 'Update-ScoopCoreClone'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'Applications', 'buckets', 'decompress', 'Dependencies', 'Installation', 'manifest', 'psmodules', 'shortcuts', 'Update', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 $ExitCode = 0
@@ -65,7 +47,7 @@ $CheckHash = !($Options.s -or $Options.skip)
 $Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
 
 if (!$Applications) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
-if ($Global -and !(is_admin)) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
+if ($Global -and !$SHOVEL_IS_ADMIN) { Stop-ScoopExecution -Message 'Admin privileges are required to manipulate with globally installed applications' -ExitCode 4 }
 
 Update-Scoop -CheckLastUpdate
 

@@ -1,16 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('psmodules', 'install_psmodule'),
-    @('shortcuts', 'rm_startmenu_shortcuts'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedUninstall__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Uninstall'
+}
+$__importedUninstall__ = $false
+
+'core', 'Helpers', 'install', 'manifest', 'psmodules', 'shortcuts', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Uninstall-ScoopApplication {
@@ -134,7 +130,7 @@ function Uninstall-ScoopApplication {
         Write-UserMessage -Message 'Removing persisted data.' -Output:$false
         $persist_dir = persistdir $App $Global
 
-        if (Test-Path $persist_dir) {
+        if (Test-Path -LiteralPath $persist_dir -PathType 'Container') {
             try {
                 Remove-Item $persist_dir -ErrorAction 'Stop' -Recurse -Force
             } catch {
@@ -147,3 +143,5 @@ function Uninstall-ScoopApplication {
 
     return $true
 }
+
+$__importedUninstall__ = $true

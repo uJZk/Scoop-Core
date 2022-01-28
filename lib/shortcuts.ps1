@@ -1,17 +1,29 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedShortcuts__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing shortcuts'
+}
+$__importedShortcuts__ = $false
+
+'core', 'Helpers', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 # Creates shortcut for the app in the start menu
 function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
     $shortcuts = @(arch_specific 'shortcuts' $manifest $arch)
+    if ($shortcuts.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Creation of Start menu shortcuts is not supported on *nix' -Info
+        return
+    }
+
+    if ($null -eq (shortcut_folder $global)) {
+        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts creation' -Warning
+        return
+    }
+
     $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $target = [System.IO.Path]::Combine($dir, $_.item(0))
         $target = New-Object System.IO.FileInfo($target)
@@ -32,7 +44,11 @@ function create_startmenu_shortcuts($manifest, $dir, $global, $arch) {
 
 function shortcut_folder($global) {
     $base = if ($global) { 'commonstartmenu' } else { 'startmenu' }
-    $directory = [System.Environment]::GetFolderPath($base) | Join-Path -ChildPath 'Programs\Scoop Apps'
+    $directory = [System.Environment]::GetFolderPath($base)
+
+    if ([String]::IsNullOrEmpty($directory)) { return $null }
+
+    $directory = Join-Path -Path $directory -ChildPath 'Programs\Scoop Apps'
 
     return Confirm-DirectoryExistence -LiteralPath $directory
 }
@@ -69,12 +85,28 @@ function startmenu_shortcut([System.IO.FileInfo] $target, $shortcutName, $argume
 
 # Removes the Startmenu shortcut if it exists
 function rm_startmenu_shortcuts($manifest, $global, $arch) {
-    @(arch_specific 'shortcuts' $manifest $arch) | Where-Object { $null -ne $_ } | ForEach-Object {
+    $shortcuts = @(arch_specific 'shortcuts' $manifest $arch)
+    if ($shortcuts.Count -eq 0) { return }
+
+    if ($SHOVEL_IS_UNIX) {
+        Write-UserMessage -Message 'Deletion of Start menu shortcuts is not supported on *nix' -Info
+        return
+    }
+
+    $shortcutFolder = shortcut_folder $global
+    if ($null -eq $shortcutFolder) {
+        Write-UserMessage -Message 'System specific folder ''commonstartmenu'' or ''startmenu'' is not defined. Skipping shortcuts deletion' -Warning
+        return
+    }
+
+    $shortcuts | Where-Object { $null -ne $_ } | ForEach-Object {
         $name = $_.item(1)
-        $shortcut = shortcut_folder $global | Join-Path -ChildPath "$name.lnk"
+        $shortcut = Join-Path -Path $shortcutFolder -ChildPath "$name.lnk"
 
         Write-UserMessage -Message "Removing shortcut $(friendly_path $shortcut)"
 
         if (Test-Path $shortcut) { Remove-Item $shortcut }
     }
 }
+
+$__importedShortcuts__ = $true

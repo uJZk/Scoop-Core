@@ -26,6 +26,9 @@
 # Settings
 # --------
 #
+# debug: $true|$false
+#   Additional output will be shown to identify possible source of problems.
+#
 # proxy: [username:password@]host:port
 #   By default, Scoop will use the proxy settings from Internet Options, but with anonymous authentication.
 #
@@ -33,6 +36,13 @@
 #       * To use the system proxy settings configured in Internet Options, use 'default' in place of host:port
 #       * An empty or unset value for proxy is equivalent to 'default' (with no username or password)
 #       * To bypass the system proxy and connect directly, use 'none' (with no username or password)
+#
+# core.useragent: Shovel/1.0 (+https://shovel.ash258.com) PowerShell/7.2 (Windows NT 10.0; Win64; x64)
+#   Allows to configure custom useragent string for all requests.
+#   Default is automatically composed based on the current PowerShell version and OS.
+#
+# commands.cat.defaultFormat: yml|json
+#   Allows to configure preffered format of the manifest representation when using the `cat` command.
 #
 # default-architecture: 64bit|32bit|arm64
 #   Allows to configure preferred architecture for application installation.
@@ -51,9 +61,6 @@
 # NO_JUNCTIONS: $true|$false
 #   The 'current' version alias will not be used.
 #   Shims, shortcuts and environment variables will point to specific version instead.
-#
-# debug: $true|$false
-#   Additional output will be shown to identify possible source of problems.
 #
 # SCOOP_REPO: http://github.com/ScoopInstaller/Scoop
 #   Git repository containining scoop source code.
@@ -108,16 +115,8 @@
 #   Array of additional aria2 options.
 #   See: 'https://aria2.github.io/manual/en/html/aria2c.html#options'
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 # TODO: Add --global - Ash258/Scoop-Core#5

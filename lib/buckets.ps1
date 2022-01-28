@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Git', 'Invoke-GitCmd')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedBuckets__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing buckets'
+}
+$__importedBuckets__ = $false
+
+'core', 'Git' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Find-BucketDirectory {
@@ -32,7 +33,7 @@ function Find-BucketDirectory {
     $bucket = Join-Path $SCOOP_BUCKETS_DIRECTORY $Name
     $nested = Join-Path $bucket 'bucket'
 
-    if (!$Root -and (Test-Path $nested)) { $bucket = $nested }
+    if (!$Root -and (Test-Path -LiteralPath $nested -PathType 'Container')) { $bucket = $nested }
 
     return $bucket
 }
@@ -60,7 +61,7 @@ function Get-LocalBucket {
 function known_bucket_repos {
     $json = Join-Path $PSScriptRoot '..\buckets.json'
 
-    return Get-Content $json -Raw | ConvertFrom-Json -ErrorAction Stop
+    return Get-Content $json -Raw | ConvertFrom-Json -ErrorAction 'Stop'
 }
 
 function known_bucket_repo($name) {
@@ -82,7 +83,7 @@ function Get-KnownBucket {
 
 function apps_in_bucket($dir) {
     $files = Get-ChildItem $dir -File
-    $allowed = $files | Where-Object -Property 'Extension' -Match -Value "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)$"
+    $allowed = @($files | Where-Object -Property 'Extension' -Match -Value "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)$")
 
     return $allowed.BaseName
 }
@@ -118,12 +119,12 @@ function Add-Bucket {
         }
     }
 
-    if (!(Test-CommandAvailable 'git')) {
+    if (!(Test-CommandAvailable -Name 'git')) {
         throw "Git is required for manipulating with buckets. Run 'scoop install git' and try again."
     }
 
     $bucketDirectory = Find-BucketDirectory -Name $Name -Root
-    if (Test-Path $bucketDirectory) { throw "Bucket with name '$Name' already exists." }
+    if (Test-Path -LiteralPath $bucketDirectory -PathType 'Container') { throw "Bucket with name '$Name' already exists." }
 
     Write-UserMessage -Message 'Checking repository...' -Output:$false
     $out = Invoke-GitCmd -Command 'ls-remote' -Argument """$RepositoryUrl""" -Proxy 2>&1
@@ -145,12 +146,12 @@ function Remove-Bucket {
 
     process {
         foreach ($b in $Name) {
-            $bucketDirectory = Find-BucketDirectory $b -Root
+            $bucketDirectory = Find-BucketDirectory -Name $b -Root
 
-            if (!(Test-Path $bucketDirectory)) { throw "'$b' bucket not found" }
+            if (!(Test-Path -LiteralPath $bucketDirectory -PathType 'Container')) { throw "'$b' bucket not found" }
 
             try {
-                Remove-Item $bucketDirectory -Force -Recurse -ErrorAction Stop
+                Remove-Item $bucketDirectory -Force -Recurse -ErrorAction 'Stop'
             } catch {
                 throw "Bucket '$b' cannot be removed: $($_.Exception.Message)"
             }
@@ -163,6 +164,8 @@ function Remove-Bucket {
 function bucketdir($name) {
     Show-DeprecatedWarning $MyInvocation 'Find-BucketDirectory'
 
-    return Find-BucketDirectory $name
+    return Find-BucketDirectory -Name $name
 }
 #endregion Deprecated
+
+$__importedBuckets__ = $true
