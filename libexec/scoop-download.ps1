@@ -11,18 +11,8 @@
 #   -a, --arch <32bit|64bit>        Use the specified architecture.
 #   -b, --all-architectures         All available files across all architectures will be downloaded.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'msi_installed'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'install', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 #region Parameter validation

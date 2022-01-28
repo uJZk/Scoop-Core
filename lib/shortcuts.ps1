@@ -1,12 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedShortcuts__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing shortcuts'
+}
+$__importedShortcuts__ = $false
+
+'core', 'Helpers', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 # Creates shortcut for the app in the start menu
@@ -108,3 +108,5 @@ function rm_startmenu_shortcuts($manifest, $global, $arch) {
         if (Test-Path $shortcut) { Remove-Item $shortcut }
     }
 }
+
+$__importedShortcuts__ = $true

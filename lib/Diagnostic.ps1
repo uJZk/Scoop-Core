@@ -3,20 +3,15 @@ Diagnostic tests.
 Return $true if the test passed, otherwise $false.
 Use 'Write-UserMessage -Warning' to highlight the issue, and follow up with the recommended actions to rectify.
 #>
+if ($__importedDiagnostic__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Diagnostic'
+}
+$__importedDiagnostic__ = $false
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('Config', 'Convert-ConfigOption'),
-    @('buckets', 'Get-KnownBucket'),
-    @('decompress', 'Expand-7zipArchive'),
-    @('install', 'msi_installed'),
-    @('Git', 'Invoke-GitCmd')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+'core', 'Helpers', 'Config', 'buckets', 'decompress', 'install', 'Git' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Test-DiagDrive {
@@ -481,3 +476,5 @@ function Test-ScoopConfigFile {
 
     return $verdict
 }
+
+$__importedDiagnostic__ = $true

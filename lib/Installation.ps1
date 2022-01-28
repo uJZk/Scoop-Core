@@ -1,13 +1,13 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Versions', 'Clear-InstalledVersion'),
-    @('install', 'msi_installed'), # TODO: Refactor and eliminate
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedInstallation__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Installation'
+}
+$__importedInstallation__ = $false
+
+# TODO: Refactor and eliminate install import
+'core', 'Versions', 'manifest', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Deny-MsiIntallationOnNanoServer {
@@ -192,3 +192,5 @@ function Set-ScoopInfoHelperFile {
         $info | ConvertToPrettyJson | Out-UTF8File -Path (Join-Path $Directory 'scoop-install.json')
     }
 }
+
+$__importedInstallation__ = $true

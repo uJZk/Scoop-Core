@@ -1,15 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('json', 'ConvertToPrettyJson'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedApplications__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Applications'
+}
+$__importedApplications__ = $false
+
+'core', 'Helpers', 'json', 'manifest', 'Dependencies', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 #region Application instalaltion info file
@@ -322,3 +319,5 @@ function Test-ResolvedObjectIsInstalled {
         return $false
     }
 }
+
+$__importedApplications__ = $true
