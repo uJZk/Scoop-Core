@@ -18,6 +18,7 @@ local manifestFormatParser = parser({'json', 'yml', 'yaml'})
 local configOptions = parser({
     'core.useragent',
     'commands.cat.defaultFormat',
+    'core.preferMoveItem',
 
 
     '7ZIPEXTRACT_USE_EXTERNAL' .. booleanParser,
