@@ -147,9 +147,11 @@ function Expand-7zipArchive {
 
         if (!$isTar -and $ExtractDir) {
             if ($SHOVEL_IS_UNIX) {
-                $argList += "-ir`"`!$ExtractDir/*`""
+                $e = $ExtractDir -replace '\\', '/'
+                # TODO: Watch out for the exapnsion of !, but it should be okay as it is send through System.Diagnostics.Process
+                $argList += "-ir`"`!$e/*`""
             } else {
-                $argList += "-ir!`"$ExtractDir\*`""
+                $argList += "-ir`"!$ExtractDir\*`""
             }
         }
         if ($Switches) { $argList += (-split $Switches) }
