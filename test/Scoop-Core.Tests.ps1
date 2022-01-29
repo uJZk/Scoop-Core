@@ -102,10 +102,6 @@ Describe 'Test-CommandAvailable' -Tag 'Scoop' {
     It "should return false if command doesn't exist" {
         Test-CommandAvailable 'Write-ThisWillProbablyNotExist' | Should -BeFalse
     }
-
-    It 'should throw if parameter is wrong or missing' {
-        { Test-CommandAvailable } | Should -Throw
-    }
 }
 
 
@@ -290,6 +286,35 @@ Describe 'sanitary_path' -Tag 'Scoop' {
         $valid_path = sanitary_path $path
 
         $valid_path | Should -Be 'test.json'
+    }
+}
+
+Describe 'Resolve-ArchitectureParameter' -Tag 'Scoop' {
+    It 'handle all the different ways to specify architecture' {
+        Mock 'default_architecture' { 'cosi' }
+        Resolve-ArchitectureParameter -Architecture 'amd64' | Should -Be '64bit'
+        Resolve-ArchitectureParameter -Architecture '64bit' | Should -Be '64bit'
+
+        Resolve-ArchitectureParameter -Architecture 'x86' | Should -Be '32bit'
+        Resolve-ArchitectureParameter -Architecture '32bit' | Should -Be '32bit'
+
+        Resolve-ArchitectureParameter -Architecture $null | Should -Be 'cosi'
+        Resolve-ArchitectureParameter -Architecture 'alfa', $null | Should -Be 'cosi'
+
+        Resolve-ArchitectureParameter -Architecture 'alfa', $null, '32bit' | Should -Be '32bit'
+        Resolve-ArchitectureParameter -Architecture '32bit', '64bit', '32bit' | Should -Be '32bit'
+        Resolve-ArchitectureParameter -Architecture '64bit', '32bit', '64bit' | Should -Be '64bit'
+
+        Mock 'default_architecture' { '64bit' }
+        Resolve-ArchitectureParameter -Architecture '64bit', $null, '32bit' | Should -Be '32bit'
+        Resolve-ArchitectureParameter -Architecture '32bit', '64bit', '32bit' | Should -Be '32bit'
+        Resolve-ArchitectureParameter -Architecture '64bit', '32bit', '64bit' | Should -Be '32bit'
+
+        Mock 'default_architecture' { '32bit' }
+        Resolve-ArchitectureParameter -Architecture '64bit', $null, '32bit' | Should -Be '64bit'
+        Resolve-ArchitectureParameter -Architecture '32bit', '64bit', '32bit' | Should -Be '64bit'
+        Resolve-ArchitectureParameter -Architecture '64bit', '32bit', '64bit' | Should -Be '64bit'
+        Resolve-ArchitectureParameter -Architecture '32bit', 'arm64', '64bit' | Should -Be 'arm64'
     }
 }
 

@@ -942,18 +942,23 @@ function handle_special_urls($url) {
 }
 #endregion TODO: Extract lib/Download.ps1
 
+# Returns default architecutre if none provided
+# Returns the first architecture, which is not same as the default one
 function Resolve-ArchitectureParameter {
     [CmdletBinding()]
     param([String[]] $Architecture)
 
     process {
         $arch = default_architecture
+        $Architecture = $Architecture | Where-Object { ![String]::IsNullOrEmpty($_) }
 
         foreach ($a in $Architecture) {
-            if ($null -eq $a) { continue }
-
             try {
-                $arch = ensure_architecture $a
+                $newArch = ensure_architecture $a
+                if ($arch -ne $newArch) {
+                    $arch = $newArch
+                    break
+                }
             } catch {
                 Write-UserMessage -Warning -Message "'$a' is not a valid architecture. Detecting default system architecture"
             }
