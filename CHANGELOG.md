@@ -2,6 +2,7 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- **commands**: Short option `-a` will not produce default architecture always
 - Increase command startup
 - Prevent MSI installations in NanoServer images
 - Installation will not fail if `commonstartmenu` or `startmenu` system folder is not defined
