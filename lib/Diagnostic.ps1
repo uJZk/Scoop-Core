@@ -321,7 +321,11 @@ function Test-DiagCompletionRegistered {
     [OutputType([bool])]
     param()
 
-    # TODO: Test only when in user interactive mode
+    $passed = [Environment]::GetCommandLineArgs()
+    if ($passed -like '-noprofile' -or $passed -like '-nop*') {
+        return $true
+    }
+
     $module = Get-Module 'Scoop-Completion'
 
     if (($null -eq $module) -or ($module.Author -notlike 'Jakub*')) {
