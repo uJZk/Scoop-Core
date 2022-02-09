@@ -2,6 +2,7 @@
 
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
+- **Diagnostic**: Ignore completion check when `-noprofile` is used (cmd usage most likely)
 - **commands**: Short option `-a` will not produce default architecture always
 - Increase command startup
 - Prevent MSI installations in NanoServer images
