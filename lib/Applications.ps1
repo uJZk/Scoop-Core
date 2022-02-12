@@ -178,6 +178,7 @@ function app_status($app, $global) {
     $status.hold = ($install_info.hold -eq $true)
     $status.bucket = $install_info.bucket
     $status.removed = $false
+    $status.url = $install_info.url
 
     $todo = $app
     if ($install_info.bucket) {
@@ -194,6 +195,7 @@ function app_status($app, $global) {
 
     if ($manifest.version) { $status.latest_version = $manifest.version }
 
+    $status.manifest = $manifest
     $status.outdated = $false
     if ($status.version -and $status.latest_version) {
         $status.outdated = (Compare-Version -ReferenceVersion $status.version -DifferenceVersion $status.latest_version) -ne 0

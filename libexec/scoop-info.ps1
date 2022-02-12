@@ -10,64 +10,48 @@
 }
 
 $ExitCode = 0
+# TODO: Add some --remote parameter to not use installed manifest
+#   -g, --global                    Gather information from globally installed application if application is installed both locally and globally.
+#                                       Useful for pre-check of installed specific application in automatic deployments.
+#   -r, --remote >    Remote manifest will be used to get all required information. Ignoring locally installed manifest (scoop-manifest.json).
+# $Options, $Application, $_err = Resolve-GetOpt $args 'a:g' 'arch=', 'global'
 $Options, $Application, $_err = Resolve-GetOpt $args 'a:' 'arch='
 
 if ($_err) { Stop-ScoopExecution -Message "scoop info: $_err" -ExitCode 2 }
 if (!$Application) { Stop-ScoopExecution -Message 'Parameter <APP> missing' -Usage (my_usage) }
+if ($Application.Count -gt 1) { Write-UserMessage -Message 'Multiple <APP> parameters is not allowed. Ignoring all except the first.' -Warning }
 
 $Application = $Application[0]
 $Architecture = Resolve-ArchitectureParameter -Architecture $Options.a, $Options.arch
+# $Global = $Options.'g' -or $Options.'global'
 
-# TODO: Adopt Resolve-ManifestInformation
-if ($Application -match '^(ht|f)tps?://|\\\\') {
-    # check if $Application is a URL or UNC path
-    $url = $Application
-    $Application = appname_from_url $url
-    $Global = installed $Application $true
-    $Status = app_status $Application $Global
-    $Manifest = url_manifest $url
-    $manifest_file = $url
-} else {
-    # else $Application is a normal app name
-    $Global = installed $Application $true
-    $Application, $bucket, $null = parse_app $Application
-    $Status = app_status $Application $Global
-    $Manifest, $bucket = find_manifest $Application $bucket
+$Resolved = $null
+try {
+    $Resolved = Resolve-ManifestInformation -ApplicationQuery $Application
+} catch {
+    Stop-ScoopExecution -Message $_.Exception.Message
 }
 
-if (!$Manifest) { Stop-ScoopExecution -Message "Could not find manifest for '$(show_app $Application $bucket)'" }
+# Variables
+$Name = $Resolved.ApplicationName
+$Message = @()
+$Global = installed $Name $true
+$Status = app_status $Name $Global
+$Manifest = $Resolved.ManifestObject
+$ManifestPath = @($Resolved.LocalPath)
 
-$Name = $Application
+$ManifestPath = $ManifestPath, $Resolved.Url, (installed_manifest $Name $Manifest.version $Global -PathOnly), $Resolved.LocalPath |
+    Where-Object { ![String]::IsNullOrEmpty($_) } | Select-Object -Unique
 
-$install = install_info $Name $Status.version $Global
-$Status.installed = $install.bucket -eq $bucket
-$version_output = $Manifest.version
-if (!$manifest_file) {
-    $manifest_file = manifest_path $Name $bucket
-}
-
-$currentVersion = Select-CurrentVersion -AppName $Name -Global:$Global
-$dir = versiondir $Name $currentVersion $Global
-$original_dir = versiondir $Name $Manifest.version $Global
-$persist_dir = persistdir $Name $Global
-
-if ($Status.installed) {
-    $manifest_file = manifest_path $Name $install.bucket
-    if ($install.url) {
-        $manifest_file = $install.url
-    }
-    if ($Status.version -eq $Manifest.version) {
-        $version_output = $Status.version
-    } else {
-        $version_output = "$($Status.version) (Update to $($Manifest.version) available)"
-    }
-    $Architecture = $install.architecture
-}
+$dir = (versiondir $Name $Manifest.version $Global).TrimEnd('\')
+$original_dir = (versiondir $Name $Resolved.Version $Global).TrimEnd('\')
+$persist_dir = (persistdir $Name $Global).TrimEnd('\')
+$up = if ($Status.outdated) { 'Yes' } else { 'No' }
 
 $Message = @("Name: $Name")
-$Message += "Version: $version_output"
+$Message += "Version: $($Manifest.Version)"
 if ($Manifest.description) { $Message += "Description: $($Manifest.description)" }
-if ($Manifest.homepage) { $Message += "Website: $($Manifest.homepage)" }
+if ($Manifest.homepage) { $Message += "Homepage: $($Manifest.homepage)" }
 
 # Show license
 # TODO: Rework
@@ -85,6 +69,7 @@ if ($Manifest.license) {
     }
     $Message += "License: $license"
 }
+
 if ($Manifest.changelog) {
     $ch = $Manifest.changelog
     if (!$ch.StartsWith('http')) {
@@ -98,25 +83,58 @@ if ($Manifest.changelog) {
 }
 
 # Manifest file
-$Message += @('Manifest:', "  $manifest_file")
+$Message += 'Manifest:'
+foreach ($m in $ManifestPath) { $Message += "  $m" }
+
+# Bucket info
+if ($Resolved.Bucket) {
+    $_m = "Bucket: $($Resolved.Bucket)"
+    $path = Find-BucketDirectory -Bucket $Resolved.Bucket
+
+    if ($path) {
+        try {
+            # TODO: Quote
+            $_u = Invoke-GitCmd -Repository $path -Command 'config' -Argument @('--get', 'remote.origin.url')
+            if ($LASTEXITCODE -ne 0) { throw 'Ignore' }
+            if ($_u) { $_m = "$_m ($_u)" }
+        } catch {
+            $_u = $null
+        }
+    }
+
+    $Message += $_m
+}
 
 # Show installed versions
 if ($Status.installed) {
-    $Message += 'Installed:'
-    $versions = Get-InstalledVersion -AppName $Name -Global:$Global
-    $versions | ForEach-Object {
-        $dir = versiondir $Name $_ $Global
-        if ($Global) { $dir += ' *global*' }
-        $Message += "  $dir"
+    $_m = 'Installed: Yes'
+    if ($Global) { $_m = "$_m *global*" }
+    $Message += $_m
+
+    $Message += "Installation path: $dir"
+
+    $v = Get-InstalledVersion -AppName $Name -Global:$Global
+    if ($v.Count -gt 0) {
+        $Message += "Installed versions: $($v -join ', ')"
     }
+    $Message += "Update available: $up"
+
+    $InstallInfo = install_info $Name $Manifest.version $Global
+    $Architecture = $InstallInfo.architecture
 } else {
-    $Message += 'Installed: No'
+    $inst = 'Installed: No'
+    # if ($reason) { $inst = "$inst ($reason)" }
+    $Message += $inst
 }
+
+$arm64Support = 'No'
+if ($Manifest.architecture.arm64) { $arm64Support = 'Yes' }
+$Message += "arm64 Support: $arm64Support"
 
 $binaries = @(arch_specific 'bin' $Manifest $Architecture)
 if ($binaries) {
     $Message += 'Binaries:'
-    $add = ''
+    $add = ' '
     foreach ($b in $binaries) {
         $addition = "$b"
         if ($b -is [System.Array]) {
@@ -167,10 +185,9 @@ if ($env_add_path) {
 #endregion Environment
 
 # Available versions:
-$vers = Find-BucketDirectory -Name $bucket | Join-Path -ChildPath "old\$Name" | Get-ChildItem -ErrorAction 'SilentlyContinue' -File |
+$vers = Find-BucketDirectory -Name $Resolved.Bucket | Join-Path -ChildPath "old\$Name" | Get-ChildItem -ErrorAction 'SilentlyContinue' -File |
     Where-Object -Property 'Name' -Match -Value "\.($ALLOWED_MANIFEST_EXTENSION_REGEX)$"
-
-if ($vers.Count -gt 0) { $Message += "Available Versions: $($vers.BaseName -join ', ')" }
+if ($vers.Count -gt 0) { $Message += "Available archived versions: $($vers.BaseName -join ', ')" }
 
 Write-UserMessage -Message $Message -Output
 
