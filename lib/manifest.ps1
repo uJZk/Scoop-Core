@@ -567,7 +567,7 @@ function manifest($app, $bucket, $url) {
     return $manifest
 }
 
-function installed_manifest($app, $version, $global) {
+function installed_manifest($app, $version, $global, [Switch] $PathOnly) {
     $d = versiondir $app $version $global
 
     #region Migration from non-generic file name
@@ -591,10 +591,13 @@ function installed_manifest($app, $version, $global) {
         }
     }
 
+    if ($PathOnly -and (Test-Path -LiteralPath $manifestPath)) { return $manifestPath }
+
     return ConvertFrom-Manifest -Path $manifestPath
 }
 
 # TODO: Deprecate
+# Throw, $null return
 function install_info($app, $version, $global) {
     $d = versiondir $app $version $global
     $path = Join-Path $d 'scoop-install.json'
