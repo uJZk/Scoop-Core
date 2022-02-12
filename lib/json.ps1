@@ -1,11 +1,12 @@
-@(
-    @('Helpers', 'New-IssuePrompt'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedJson__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing json'
+}
+$__importedJson__ = $false
+
+'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 # Convert objects to pretty json
@@ -121,7 +122,7 @@ function json_path([String] $json, [String] $jsonpath, [Hashtable] $substitution
         }
         return $result.ToString()
     } catch [System.Management.Automation.MethodInvocationException] {
-        Write-UserMessage -Message $_ -Color DarkRed
+        Write-UserMessage -Message $_ -Color 'DarkRed'
         return $null
     }
 
@@ -129,7 +130,7 @@ function json_path([String] $json, [String] $jsonpath, [Hashtable] $substitution
 }
 
 function json_path_legacy([String] $json, [String] $jsonpath, [Hashtable] $substitutions) {
-    $result = $json | ConvertFrom-Json -ErrorAction Stop
+    $result = $json | ConvertFrom-Json -ErrorAction 'Stop'
     $isJsonPath = $jsonpath.StartsWith('$')
 
     debug $jsonpath
@@ -212,3 +213,5 @@ function normalize_values([psobject] $json) {
 
     return $json
 }
+
+$__importedJson__ = $true

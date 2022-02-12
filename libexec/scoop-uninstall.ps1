@@ -7,23 +7,8 @@
 #   -p, --purge    Persisted data will be removed.
 #                  Normally when application is being uninstalled, the data defined in persist property/manually persisted are kept.
 
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('getopt', 'Resolve-GetOpt'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('install', 'msi_installed'),
-    @('Applications', 'Get-InstalledApplicationInformation'),
-    @('manifest', 'Resolve-ManifestInformation'),
-    @('psmodules', 'install_psmodule'),
-    @('shortcuts', 'rm_startmenu_shortcuts'),
-    @('Uninstall', 'Uninstall-ScoopApplication'),
-    @('Versions', 'Clear-InstalledVersion')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "..\lib\$($_[0]).ps1")
-    }
+'core', 'getopt', 'help', 'Helpers', 'install', 'Applications', 'manifest', 'psmodules', 'shortcuts', 'Uninstall', 'Versions' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "..\lib\${_}.ps1")
 }
 
 $ExitCode = 0

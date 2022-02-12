@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedCommands__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing commands'
+}
+$__importedCommands__ = $false
+
+'core', 'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function command_files {
@@ -14,7 +15,7 @@ function command_files {
 
     Confirm-DirectoryExistence -LiteralPath $shims | Out-Null
 
-    return Get-ChildItem -LiteralPath $libExec, $shims -ErrorAction 'SilentlyContinue' | Where-Object -Property 'Name' -Match -Value 'scoop-.*?\.ps1$'
+    return @(Get-ChildItem -LiteralPath $libExec, $shims -ErrorAction 'SilentlyContinue' | Where-Object -Property 'Name' -Match -Value 'scoop-.*?\.ps1$')
 }
 
 function command_name($filename) {
@@ -29,15 +30,15 @@ function command_path($cmd) {
     $cmd_path = Join-Path $PSScriptRoot "..\libexec\scoop-$cmd.ps1"
 
     # Built in commands
-    if (!(Test-Path $cmd_path)) {
+    if (!(Test-Path -LiteralPath $cmd_path -PathType 'Leaf')) {
         # Get path from shim
         $shim_path = Join-Path $SCOOP_ROOT_DIRECTORY "shims\scoop-$cmd.ps1"
-        if (!(Test-Path -LiteralPath $shim_path)) {
+        if (!(Test-Path -LiteralPath $shim_path -PathType 'Leaf')) {
             throw [ScoopException]::new("Shim for alias '$cmd' does not exist") # TerminatingError thrown
         }
 
         $cmd_path = $shim_path
-        $line = ((Get-Content -LiteralPath $shim_path -Encoding 'UTF8') | Where-Object { $_.StartsWith('$path') })
+        $line = @((Get-Content -LiteralPath $shim_path -Encoding 'UTF8') | Where-Object { $_.StartsWith('$path') })
         if ($line) {
             # TODO: Drop Invoke-Expression
             Invoke-Expression -Command "$line"
@@ -53,3 +54,5 @@ function Invoke-ScoopCommand {
 
     & (command_path $cmd) @arguments
 }
+
+$__importedCommands__ = $true

@@ -1,11 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt')
-) | ForEach-Object {
-    if (!(Get-Command $_[1] -ErrorAction 'Ignore')) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedConfig__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Config'
+}
+$__importedConfig__ = $false
+
+'core', 'Helpers' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $SHOVEL_CONFIG_REMOVED = @(
@@ -55,3 +56,5 @@ function Convert-ConfigOption {
         $OldConfigOptions, $NewConfigOptions | Out-Null
     }
 }
+
+$__importedConfig__ = $true

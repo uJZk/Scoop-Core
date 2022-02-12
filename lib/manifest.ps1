@@ -1,14 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('autoupdate', 'Invoke-Autoupdate'),
-    @('buckets', 'Get-KnownBucket'),
-    @('json', 'ConvertToPrettyJson')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedManifest__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing manifest'
+}
+$__importedManifest__ = $false
+
+'core', 'Helpers', 'autoupdate', 'buckets', 'json' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $ALLOWED_MANIFEST_EXTENSION = @('json', 'yaml', 'yml')
@@ -569,7 +567,7 @@ function manifest($app, $bucket, $url) {
     return $manifest
 }
 
-function installed_manifest($app, $version, $global) {
+function installed_manifest($app, $version, $global, [Switch] $PathOnly) {
     $d = versiondir $app $version $global
 
     #region Migration from non-generic file name
@@ -593,10 +591,13 @@ function installed_manifest($app, $version, $global) {
         }
     }
 
+    if ($PathOnly -and (Test-Path -LiteralPath $manifestPath)) { return $manifestPath }
+
     return ConvertFrom-Manifest -Path $manifestPath
 }
 
 # TODO: Deprecate
+# Throw, $null return
 function install_info($app, $version, $global) {
     $d = versiondir $app $version $global
     $path = Join-Path $d 'scoop-install.json'
@@ -688,3 +689,5 @@ function msi($manifest, $arch) { arch_specific 'msi' $manifest $arch }
 function hash($manifest, $arch) { arch_specific 'hash' $manifest $arch }
 function extract_dir($manifest, $arch) { arch_specific 'extract_dir' $manifest $arch }
 function extract_to($manifest, $arch) { arch_specific 'extract_to' $manifest $arch }
+
+$__importedManifest__ = $true

@@ -1,12 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'Get-MagicByte'),
-    @('commands', 'Invoke-ScoopCommand')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedHelp__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing help'
+}
+$__importedHelp__ = $false
+
+'core', 'Helpers', 'commands' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function usage($text) {
@@ -23,7 +23,7 @@ function scoop_help($text) {
 }
 
 function print_help($cmd) {
-    $file = Get-Content (command_path $cmd) -Raw
+    $file = Get-Content -LiteralPath (command_path $cmd) -Raw
 
     $usage = usage $file
     $summary = summary $file
@@ -39,7 +39,7 @@ function print_summaries {
 
     command_files | ForEach-Object {
         $command = command_name $_
-        $summary = summary (Get-Content (command_path $command) -Raw)
+        $summary = summary (Get-Content -LiteralPath (command_path $command) -Raw)
         if (!($summary)) { $summary = '' }
         $commands.Add("$command ", $summary) # add padding
     }
@@ -49,5 +49,7 @@ function print_summaries {
 
 function my_usage {
     # Gets usage for the calling script
-    usage (Get-Content $myInvocation.PSCommandPath -Raw)
+    usage (Get-Content -LiteralPath $myInvocation.PSCommandPath -Raw)
 }
+
+$__importedHelp__ = $true

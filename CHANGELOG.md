@@ -3,6 +3,10 @@
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
 - **Unix**: Monkey patch archive extraction
+- **scoop-info**: Adopt new resolve function for parameter passing
+- **Diagnostic**: Ignore completion check when `-noprofile` is used (cmd usage most likely)
+- **commands**: Short option `-a` will not produce default architecture always
+- Increase command startup
 - Prevent MSI installations in NanoServer images
 - Installation will not fail if `commonstartmenu` or `startmenu` system folder is not defined
 - Print not supported message only if operation will be executed

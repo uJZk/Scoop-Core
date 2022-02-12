@@ -1,14 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('help', 'scoop_help'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('commands', 'Invoke-ScoopCommand'),
-    @('install', 'msi_installed')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedAlias__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Alias'
+}
+$__importedAlias__ = $false
+
+'core', 'Helpers', 'help', 'commands', 'install' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $ALIAS_CMD_ALIAS = 'alias'
@@ -140,3 +138,5 @@ function Get-ScoopAlias {
 
     return $aliases.GetEnumerator() | Sort-Object Name | Format-Table -Property 'Name', 'Summary', 'Command' -AutoSize -Wrap -HideTableHeaders:(!$Verbose)
 }
+
+$__importedAlias__ = $true

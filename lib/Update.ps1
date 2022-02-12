@@ -1,18 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('buckets', 'Get-KnownBucket'),
-    @('commands', 'Invoke-ScoopCommand'),
-    @('Git', 'Invoke-GitCmd'),
-    @('install', 'msi_installed'),
-    @('Dependencies', 'Resolve-DependsProperty'),
-    @('Installation', 'Install-ScoopApp'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedUpdate__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Update'
+}
+$__importedUpdate__ = $false
+
+'core', 'Helpers', 'buckets', 'commands', 'Git', 'install', 'Dependencies', 'Installation', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 $DEFAULT_UPDATE_REPO = 'https://github.com/Ash258/Scoop-Core'
@@ -404,3 +398,5 @@ function Update-App {
     Install-ScoopApplication -ResolvedObject $applicationToUpdate -Architecture $architecture -Global:$Global -Suggested:$Suggested `
         -UseCache:$useCache -CheckHash:$checkHash
 }
+
+$__importedUpdate__ = $true

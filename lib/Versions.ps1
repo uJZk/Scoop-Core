@@ -1,12 +1,12 @@
-@(
-    @('core', 'Test-ScoopDebugEnabled'),
-    @('Helpers', 'New-IssuePrompt'),
-    @('manifest', 'Resolve-ManifestInformation')
-) | ForEach-Object {
-    if (!([bool] (Get-Command $_[1] -ErrorAction 'Ignore'))) {
-        Write-Verbose "Import of lib '$($_[0])' initiated from '$PSCommandPath'"
-        . (Join-Path $PSScriptRoot "$($_[0]).ps1")
-    }
+if ($__importedVersions__ -eq $true) {
+    return
+} else {
+    Write-Verbose 'Importing Versions'
+}
+$__importedVersions__ = $false
+
+'core', 'Helpers', 'manifest' | ForEach-Object {
+    . (Join-Path $PSScriptRoot "${_}.ps1")
 }
 
 function Get-LatestVersion {
@@ -61,10 +61,10 @@ function Get-InstalledVersion {
         $appPath = appdir $AppName $Global
         $result = @()
 
-        if (Test-Path $appPath -PathType 'Container') {
+        if (Test-Path -LiteralPath $appPath -PathType 'Container') {
             # TODO: Keep only scoop-install.json
-            $arr = @((Get-ChildItem "$appPath\*\install.json"), (Get-ChildItem "$appPath\*\scoop-install.json"))
-            $versions = @(($arr | Sort-Object -Property LastWriteTimeUtc).Directory.Name) | Where-Object { $_ -ne 'current' }
+            $arr = @(Get-ChildItem -Path "$appPath\*\install.json", "$appPath\*\scoop-install.json")
+            $versions = @(($arr | Sort-Object -Property 'LastWriteTimeUtc').Directory.Name) | Where-Object { $_ -ne 'current' }
             if ($versions.Count -gt 0) { $result = $versions }
         }
 
@@ -283,3 +283,5 @@ function current_version($app, $global) {
     return Select-CurrentVersion -AppName $app -Global:$global
 }
 #endregion Deprecated
+
+$__importedVersions__ = $true
