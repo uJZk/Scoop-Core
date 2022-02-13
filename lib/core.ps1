@@ -141,7 +141,7 @@ function New-DirectoryJunctionLink {
     .SYNOPSIS
         Creates a new directory junction.
     .DESCRIPTION
-        On Unix ln --symbolic will be used instead.
+        On Unix ln -s will be used instead.
         On Windows +R attribute will be set on the link.
     .PARAMETER Target
         Specifies the real directory path.
@@ -154,7 +154,7 @@ function New-DirectoryJunctionLink {
     process {
         Invoke-SystemComSpecCommand `
             -Windows "MKLINK /J ""$LinkName"" ""$Target""&&ATTRIB +R ""$LinkName"" /L" `
-            -Unix "ln --symbolic '$Target' '$LinkName'"
+            -Unix "ln -s '$Target' '$LinkName'"
     }
 }
 

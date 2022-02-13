@@ -3,6 +3,7 @@
 ## [0.6.5](https://github.com/Ash258/Scoop-Core/milestone/5)
 
 - Support installation of archives under *nix
+- **Unix**: Use short option for symbolic `ln` calls
 - **scoop-info**: Adopt new resolve function for parameter passing
 - **Diagnostic**: Ignore completion check when `-noprofile` is used (cmd usage most likely)
 - **commands**: Short option `-a` will not produce default architecture always
